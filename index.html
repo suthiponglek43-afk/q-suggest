@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Pro | Full Version</title>
+    <title>Finance Pro | Ultimate Edition</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -12,7 +12,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap');
-        body { font-family: 'Prompt', sans-serif; background-color: #F8FAFC; }
+        body { font-family: 'Prompt', sans-serif; background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .animate-in { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -27,53 +27,78 @@
         const { useState, useMemo, useEffect } = React;
 
         const Lucide = ({ name, size = 24, className = "" }) => {
-            useEffect(() => { lucide.createIcons(); }, [name]);
-            return <i data-lucide={name.toLowerCase()} className={className} style={{width: size, height: size}}></i>;
+            useEffect(() => { lucide.createIcons(); }, [name, size, className]);
+            return <i data-lucide={name.toLowerCase()} className={className} style={{width: size, height: size, display:'inline-block'}}></i>;
         };
+
+        const THAI_BANKS = [
+            { id: 'kbank', name: 'กสิกรไทย', shortName: 'KBank', color: 'bg-emerald-600' },
+            { id: 'scb', name: 'ไทยพาณิชย์', shortName: 'SCB', color: 'bg-purple-700' },
+            { id: 'bbl', name: 'กรุงเทพ', shortName: 'BBL', color: 'bg-blue-800' },
+            { id: 'ktb', name: 'กรุงไทย', shortName: 'KTB', color: 'bg-sky-500' },
+            { id: 'bay', name: 'กรุงศรีฯ', shortName: 'BAY', color: 'bg-yellow-500' },
+            { id: 'ttb', name: 'ทหารไทยธนชาต', shortName: 'TTB', color: 'bg-blue-600' },
+            { id: 'gsb', name: 'ออมสิน', shortName: 'GSB', color: 'bg-pink-500' }
+        ];
 
         function App() {
             const [activeTab, setActiveTab] = useState('home');
             const [showBalance, setShowBalance] = useState(true);
-            const [showModal, setShowModal] = useState(false);
+            const [showTxModal, setShowTxModal] = useState(false);
+            const [showAccModal, setShowAccModal] = useState(false);
+            const [expandedBank, setExpandedBank] = useState(null);
             const [txType, setTxType] = useState('expense');
 
-            // --- Data States (Persistence) ---
-            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem('b_data')) || [
-                { id: 'kbank', name: 'กสิกรไทย', shortName: 'KBank', color: 'bg-emerald-600', accounts: [{ id: 101, name: 'ออมทรัพย์', balance: 45000 }] }
-            ]);
-            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem('t_data')) || []);
-            const [investments] = useState([{ name: 'หุ้นไทย (SET)', value: 450000 }, { name: 'คริปโต', value: 95000 }]);
-            const [goals] = useState([
-                { title: 'ทริปญี่ปุ่น', target: 50000, saved: 32000, color: 'bg-rose-500' },
-                { title: 'ดาวน์รถใหม่', target: 200000, saved: 45000, color: 'bg-blue-500' }
-            ]);
-            const [budgets] = useState([
-                { category: 'อาหาร', limit: 10000, spent: 6500, color: 'bg-blue-500' },
-                { category: 'เดินทาง', limit: 5000, spent: 1500, color: 'bg-emerald-500' }
-            ]);
-
-            const [formData, setFormData] = useState({ amount: '', title: '', accountId: '' });
+            // --- Database ---
+            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem('fin_banks')) || []);
+            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem('fin_tx')) || []);
+            
+            // --- Form States ---
+            const [txForm, setTxForm] = useState({ amount: '', title: '', accId: '', category: 'อาหาร' });
+            const [accForm, setAccForm] = useState({ bankId: 'kbank', name: '', balance: '' });
 
             useEffect(() => {
-                localStorage.setItem('b_data', JSON.stringify(banks));
-                localStorage.setItem('t_data', JSON.stringify(transactions));
+                localStorage.setItem('fin_banks', JSON.stringify(banks));
+                localStorage.setItem('fin_tx', JSON.stringify(transactions));
                 lucide.createIcons();
-            }, [banks, transactions, activeTab, showModal]);
+            }, [banks, transactions, activeTab, showTxModal, showAccModal, expandedBank]);
 
             const totals = useMemo(() => {
                 const bankSum = banks.reduce((a, b) => a + b.accounts.reduce((ac, s) => ac + s.balance, 0), 0);
-                const invSum = investments.reduce((a, i) => a + i.value, 0);
-                return { netWorth: bankSum + invSum, invSum };
+                return { netWorth: bankSum + 545000, bankSum }; // +545k is investment from mockup
             }, [banks]);
 
-            const saveTx = () => {
-                const amt = parseFloat(formData.amount);
-                if (!amt || !formData.accountId) return;
-                
+            const allAccounts = banks.flatMap(b => b.accounts.map(a => ({ ...a, bankName: b.shortName })));
+
+            // --- Handlers ---
+            const handleAddAccount = () => {
+                if (!accForm.name || !accForm.balance) return alert("กรุณากรอกข้อมูลให้ครบ");
+                const bankBase = THAI_BANKS.find(b => b.id === accForm.bankId);
+                let newBanks = [...banks];
+                const bankIdx = newBanks.findIndex(b => b.id === accForm.bankId);
+                const newAccObj = { id: Date.now(), name: accForm.name, balance: parseFloat(accForm.balance) };
+
+                if (bankIdx >= 0) {
+                    newBanks[bankIdx].accounts.push(newAccObj);
+                } else {
+                    newBanks.push({ ...bankBase, accounts: [newAccObj] });
+                }
+
+                setBanks(newBanks);
+                setShowAccModal(false);
+                setAccForm({ bankId: 'kbank', name: '', balance: '' });
+            };
+
+            const handleSaveTx = () => {
+                const amt = parseFloat(txForm.amount);
+                if (!amt || !txForm.accId) return alert("กรุณากรอกข้อมูล");
+
                 let updatedBanks = JSON.parse(JSON.stringify(banks));
+                let accLabel = "";
                 updatedBanks = updatedBanks.map(b => ({
                     ...b, accounts: b.accounts.map(a => {
-                        if (a.id === parseInt(formData.accountId)) {
+                        if (a.id === parseInt(txForm.accId)) {
+                            accLabel = `${b.shortName} - ${a.name}`;
                             return { ...a, balance: txType === 'expense' ? a.balance - amt : a.balance + amt };
                         }
                         return a;
@@ -81,122 +106,126 @@
                 }));
 
                 setBanks(updatedBanks);
-                setTransactions([{ id: Date.now(), title: formData.title || 'รายการใหม่', amount: txType === 'expense' ? -amt : amt, type: txType, date: new Date().toLocaleTimeString('th-TH') }, ...transactions]);
-                setShowModal(false);
-                setFormData({ amount: '', title: '', accountId: '' });
+                setTransactions([{
+                    id: Date.now(),
+                    title: txForm.title || (txType === 'expense' ? 'รายจ่าย' : 'รายรับ'),
+                    amount: txType === 'expense' ? -amt : amt,
+                    accLabel,
+                    date: new Date().toLocaleString('th-TH', {hour:'2-digit', minute:'2-digit'}),
+                    type: txType
+                }, ...transactions]);
+
+                setShowTxModal(false);
+                setTxForm({ amount: '', title: '', accId: '', category: 'อาหาร' });
             };
 
             return (
                 <div className="min-h-screen flex justify-center">
                     <div className="w-full max-w-md bg-white sm:rounded-[40px] shadow-2xl relative flex flex-col overflow-hidden border-white">
                         
-                        {/* 1. Header (Net Worth) */}
+                        {/* 1. Dashboard Header */}
                         <div className="pt-12 pb-8 px-6 bg-white shrink-0 rounded-b-[40px] shadow-sm z-10 text-center">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Net Worth</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Net Worth รวม</p>
                             <h2 className="text-4xl font-black text-slate-900 tracking-tighter mt-1">
                                 {showBalance ? `฿${totals.netWorth.toLocaleString()}` : '••••••••••'}
                             </h2>
                             <div className="flex justify-center gap-3 mt-8">
-                                <button onClick={() => {setTxType('expense'); setShowModal(true);}} className="flex-1 bg-black text-white py-4 rounded-2xl text-xs font-bold shadow-lg active:scale-95 transition-all">บันทึกรายการ</button>
+                                <button onClick={() => {setTxType('expense'); setShowTxModal(true);}} className="flex-1 bg-black text-white py-4 rounded-2xl text-xs font-bold shadow-lg active:scale-95 transition-all">บันทึกรายการ</button>
                                 <button onClick={() => setShowBalance(!showBalance)} className="px-6 border border-slate-200 py-4 rounded-2xl text-slate-400 active:scale-95 transition-all">
                                     <Lucide name={showBalance ? "Eye" : "EyeOff"} size={18} />
                                 </button>
                             </div>
                         </div>
 
-                        {/* 2. Content Area */}
-                        <div className="flex-1 px-6 pt-6 pb-28 overflow-y-auto no-scrollbar scroll-smooth space-y-8">
+                        {/* 2. Content Sections */}
+                        <div className="flex-1 px-6 pt-6 pb-28 overflow-y-auto no-scrollbar scroll-smooth">
                             
                             {activeTab === 'home' && (
                                 <div className="space-y-8 animate-in">
-                                    {/* การลงทุน (Investment Card) */}
+                                    {/* Bank Accounts Section */}
                                     <div className="space-y-4">
-                                        <div className="flex justify-between items-center"><h3 className="font-bold text-slate-800">การลงทุน</h3><span className="text-blue-600 text-xs font-bold cursor-pointer">จัดการพอร์ต ↗</span></div>
-                                        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[32px] p-6 text-white shadow-xl relative overflow-hidden">
-                                            <div className="relative z-10">
-                                                <p className="text-blue-100 text-xs font-medium opacity-80">พอร์ตลงทุนรวม</p>
-                                                <div className="flex items-center justify-between">
-                                                    <h4 className="text-2xl font-bold">฿{totals.invSum.toLocaleString()}</h4>
-                                                    <span className="bg-green-400 text-green-900 text-[10px] font-bold px-2 py-1 rounded-full">+5.4%</span>
+                                        <div className="flex justify-between items-center">
+                                            <h3 className="font-bold text-slate-800">บัญชีธนาคาร</h3>
+                                            <button onClick={() => setShowAccModal(true)} className="text-blue-600 text-xs font-bold">+ เพิ่มบัญชี</button>
+                                        </div>
+                                        {banks.length === 0 && <p className="text-center text-xs text-slate-400 py-4 italic">ยังไม่มีบัญชีธนาคาร</p>}
+                                        {banks.map(bank => (
+                                            <div key={bank.id} className="bg-white rounded-[24px] border border-slate-50 shadow-sm overflow-hidden">
+                                                <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50" onClick={() => setExpandedBank(expandedBank === bank.id ? null : bank.id)}>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 ${bank.color} rounded-xl text-white text-[10px] font-bold flex items-center justify-center`}>{bank.shortName}</div>
+                                                        <div><p className="font-bold text-sm text-slate-800">{bank.name}</p><p className="text-[10px] text-slate-400">{bank.accounts.length} บัญชี</p></div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 font-bold text-sm">
+                                                        ฿{bank.accounts.reduce((a,ac)=>a+ac.balance,0).toLocaleString()}
+                                                        <Lucide name={expandedBank === bank.id ? "ChevronUp" : "ChevronDown"} size={16} className="text-slate-300"/>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-4 mt-6">
-                                                    {investments.map((inv, idx) => (
-                                                        <div key={idx} className="bg-white/10 p-3 rounded-2xl flex-1 backdrop-blur-md">
-                                                            <p className="text-[10px] opacity-70 truncate">{inv.name}</p>
-                                                            <p className="font-bold text-sm">฿{inv.value.toLocaleString()}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                {expandedBank === bank.id && (
+                                                    <div className="px-4 pb-4 space-y-3 bg-slate-50/50 pt-2 border-t border-slate-50">
+                                                        {bank.accounts.map(acc => (
+                                                            <div key={acc.id} className="flex justify-between text-xs font-medium text-slate-600 pl-12 italic">
+                                                                <span>{acc.name}</span>
+                                                                <span>฿{acc.balance.toLocaleString()}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Investments (Mockup Style) */}
+                                    <div className="space-y-4">
+                                        <h3 className="font-bold text-slate-800">การลงทุน</h3>
+                                        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[32px] p-6 text-white shadow-xl">
+                                            <div className="flex justify-between items-start mb-6">
+                                                <div><p className="text-blue-100 text-xs opacity-80">พอร์ตลงทุนรวม</p><h4 className="text-2xl font-bold">฿545,000</h4></div>
+                                                <span className="bg-green-400 text-green-900 text-[10px] font-bold px-2 py-1 rounded-full">+5.4%</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4 text-center">
+                                                <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-md border border-white/10"><p className="text-[9px] opacity-70">หุ้นไทย (SET)</p><p className="font-bold text-xs">฿450,000</p></div>
+                                                <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-md border border-white/10"><p className="text-[9px] opacity-70">คริปโตฯ</p><p className="font-bold text-xs">฿95,000</p></div>
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                            )}
 
-                                    {/* เป้าหมายการออม (Saving Goals) */}
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center"><h3 className="font-bold text-slate-800">เป้าหมายการออม</h3><span className="text-blue-600 text-xs font-bold">+ เพิ่ม</span></div>
-                                        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                                            {goals.map((g, idx) => (
-                                                <div key={idx} className="min-w-[200px] bg-white p-5 rounded-3xl border border-slate-100 shadow-sm shrink-0">
-                                                    <div className="flex items-center gap-3 mb-3">
-                                                        <div className={`p-2 rounded-xl bg-slate-50 text-slate-400`}><Lucide name="Target" size={16}/></div>
-                                                        <span className="font-bold text-slate-800 text-sm">{g.title}</span>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <div className="flex justify-between text-[10px] font-bold">
-                                                            <span>฿{g.saved.toLocaleString()}</span>
-                                                            <span className="text-slate-300">/ ฿{g.target.toLocaleString()}</span>
-                                                        </div>
-                                                        <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
-                                                            <div className={`h-full ${g.color}`} style={{width: `${(g.saved/g.target)*100}%`}}></div>
-                                                        </div>
-                                                        <p className="text-[9px] text-right text-slate-400">สำเร็จ {Math.round((g.saved/g.target)*100)}%</p>
-                                                    </div>
-                                                </div>
-                                            ))}
+                            {activeTab === 'history' && (
+                                <div className="space-y-4 animate-in">
+                                    <h3 className="font-bold text-xl mb-4">ประวัติรายการ</h3>
+                                    {transactions.map(t => (
+                                        <div key={t.id} className="bg-white p-4 rounded-3xl border border-slate-50 flex justify-between items-center shadow-sm">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-3 rounded-2xl ${t.amount > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}><Lucide name={t.amount > 0 ? "ArrowDownLeft" : "ArrowUpRight"} size={20}/></div>
+                                                <div><p className="font-bold text-sm text-slate-800">{t.title}</p><p className="text-[10px] text-slate-400">{t.accLabel}</p></div>
+                                            </div>
+                                            <div className="text-right font-bold"><p className={t.amount > 0 ? 'text-emerald-600' : 'text-slate-800'}>{t.amount > 0 ? '+' : ''}฿{Math.abs(t.amount).toLocaleString()}</p><p className="text-[9px] text-slate-300">{t.date}</p></div>
                                         </div>
-                                    </div>
-
-                                    {/* งบประมาณ (Budget) */}
-                                    <div className="space-y-4">
-                                        <h3 className="font-bold text-slate-800">งบประมาณ</h3>
-                                        <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm space-y-5">
-                                            {budgets.map((b, idx) => (
-                                                <div key={idx} className="space-y-2">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm font-bold text-slate-700">{b.category}</span>
-                                                        <span className="text-xs font-bold text-slate-900">{Math.round((b.spent/b.limit)*100)}%</span>
-                                                    </div>
-                                                    <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
-                                                        <div className={`h-full ${b.color}`} style={{width: `${(b.spent/b.limit)*100}%`}}></div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                    ))}
+                                    {transactions.length === 0 && <p className="text-center py-20 text-slate-300 italic">ไม่มีรายการ</p>}
                                 </div>
                             )}
 
                             {activeTab === 'stats' && (
                                 <div className="space-y-8 animate-in text-center">
                                     <h3 className="font-bold text-xl text-slate-800 text-left">วิเคราะห์รายจ่าย</h3>
-                                    <div className="flex bg-slate-100 p-1 rounded-2xl mx-4">
-                                        {['สัปดาห์', 'เดือน', 'ปี'].map(t => <button key={t} className={`flex-1 py-2 text-xs font-bold rounded-xl ${t==='เดือน'?'bg-white shadow-sm':'text-slate-400'}`}>{t}</button>)}
-                                    </div>
-                                    {/* Donut Chart Mockup */}
-                                    <div className="relative w-48 h-48 mx-auto flex items-center justify-center">
+                                    <div className="relative w-40 h-40 mx-auto mt-10">
                                         <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
                                             <circle cx="18" cy="18" r="16" fill="none" stroke="#F1F5F9" strokeWidth="3"></circle>
-                                            <circle cx="18" cy="18" r="16" fill="none" stroke="#3B82F6" strokeWidth="3" strokeDasharray="40, 100"></circle>
-                                            <circle cx="18" cy="18" r="16" fill="none" stroke="#F43F5E" strokeWidth="3" strokeDasharray="25, 100" strokeDashoffset="-40"></circle>
+                                            <circle cx="18" cy="18" r="16" fill="none" stroke="#3B82F6" strokeWidth="3" strokeDasharray="60, 100"></circle>
                                         </svg>
-                                        <div className="absolute flex flex-col items-center">
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
                                             <p className="text-[10px] text-slate-400">เดือนนี้</p>
                                             <p className="text-2xl font-black">฿185</p>
                                         </div>
                                     </div>
-                                    <div className="flex justify-center gap-6 text-xs font-bold">
-                                        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div> อาหาร 40%</div>
-                                        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-rose-500"></div> ช้อปปิ้ง 25%</div>
+                                    <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm text-left space-y-4">
+                                        <div className="flex justify-between text-sm font-bold"><span>อาหาร</span><span>65%</span></div>
+                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 w-[65%]"></div></div>
+                                        <div className="flex justify-between text-sm font-bold pt-2"><span>เดินทาง</span><span>30%</span></div>
+                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 w-[30%]"></div></div>
                                     </div>
                                 </div>
                             )}
@@ -205,41 +234,28 @@
                                 <div className="space-y-6 animate-in">
                                     <h3 className="font-bold text-xl text-slate-800">ตั้งค่า</h3>
                                     <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-                                        <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-bold">A</div>
-                                        <div className="flex-1">
-                                            <h4 className="font-bold text-slate-800 text-lg">คุณอภิสิทธิ์</h4>
-                                            <p className="text-xs text-slate-400">Premium Member</p>
-                                        </div>
-                                        <button className="p-2 bg-slate-50 rounded-full text-blue-600"><Lucide name="Settings" size={20}/></button>
+                                        <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">A</div>
+                                        <div className="flex-1"><h4 className="font-bold text-slate-800 text-lg">คุณอภิสิทธิ์</h4><p className="text-xs text-slate-400">Premium Member</p></div>
+                                        <div className="p-2 bg-slate-50 rounded-full text-blue-600"><Lucide name="Settings" size={20}/></div>
                                     </div>
                                     <div className="bg-white rounded-3xl border border-slate-50 divide-y overflow-hidden shadow-sm">
-                                        {[
-                                            { icon: 'CreditCard', label: 'บัญชีธนาคารและบัตร' },
-                                            { icon: 'Target', label: 'เป้าหมายและงบประมาณ' },
-                                            { icon: 'Bell', label: 'การแจ้งเตือน' },
-                                            { icon: 'Shield', label: 'ความปลอดภัย (FaceID)' }
-                                        ].map((item, i) => (
+                                        {['บัญชีธนาคารและบัตร', 'เป้าหมายและงบประมาณ', 'การแจ้งเตือน', 'ความปลอดภัย (FaceID)'].map((l, i) => (
                                             <div key={i} className="p-5 flex items-center justify-between hover:bg-slate-50 cursor-pointer">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="p-2 bg-slate-50 text-slate-400 rounded-xl"><Lucide name={item.icon} size={20}/></div>
-                                                    <span className="text-sm font-bold text-slate-700">{item.label}</span>
-                                                </div>
+                                                <span className="text-sm font-bold text-slate-700">{l}</span>
                                                 <Lucide name="ChevronRight" size={16} className="text-slate-200" />
                                             </div>
                                         ))}
                                     </div>
-                                    <button className="w-full py-4 bg-rose-50 text-rose-600 rounded-3xl text-sm font-bold flex justify-center items-center gap-2 mt-4">
-                                        <Lucide name="LogOut" size={18}/> ออกจากระบบ
-                                    </button>
+                                    <button className="w-full py-4 bg-rose-50 text-rose-600 rounded-3xl text-sm font-bold flex justify-center items-center gap-2 mt-4"><Lucide name="LogOut" size={18}/> ออกจากระบบ</button>
                                 </div>
                             )}
-
                         </div>
 
-                        {/* 3. Bottom Navigation */}
+                        {/* 3. Navigation Bar */}
                         <div className="absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-100 px-8 py-5 flex justify-between items-center pb-8 z-20">
                             {[
                                 {id: 'home', icon: 'Wallet', label: 'Home'},
+                                {id: 'history', icon: 'History', label: 'History'},
                                 {id: 'stats', icon: 'PieChart', label: 'Stats'},
                                 {id: 'settings', icon: 'Settings', label: 'Menu'}
                             ].map(t => (
@@ -250,18 +266,33 @@
                             ))}
                         </div>
 
-                        {/* 4. Modal (บันทึกรายการ) */}
-                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${showModal ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                            <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${showModal ? 'active' : ''}`}>
-                                <div className="flex justify-between items-center mb-8 font-black text-xl"><h4>บันทึกรายการ</h4><button onClick={()=>setShowModal(false)}><Lucide name="X" size={24}/></button></div>
+                        {/* 4. Modal: บันทึกรายการ */}
+                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${showTxModal ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${showTxModal ? 'active' : ''}`}>
+                                <div className="flex justify-between items-center mb-8"><h4 className="text-xl font-black">บันทึก {txType==='expense'?'รายจ่าย':'รายรับ'}</h4><button onClick={()=>setShowTxModal(false)}><Lucide name="X" size={24}/></button></div>
                                 <div className="space-y-6">
-                                    <input type="number" placeholder="0.00" className={`w-full text-5xl font-black text-center outline-none ${txType === 'expense' ? 'text-rose-500' : 'text-emerald-500'}`} value={formData.amount} onChange={e=>setFormData({...formData, amount: e.target.value})} />
-                                    <select className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={formData.accountId} onChange={e=>setFormData({...formData, accountId: e.target.value})}>
+                                    <input type="number" placeholder="0.00" className={`w-full text-5xl font-black text-center outline-none ${txType==='expense'?'text-rose-500':'text-emerald-500'}`} value={txForm.amount} onChange={e=>setTxForm({...txForm, amount:e.target.value})} />
+                                    <select className="w-full p-4 bg-slate-100 rounded-2xl font-bold appearance-none outline-none" value={txForm.accId} onChange={e=>setTxForm({...txForm, accId:e.target.value})}>
                                         <option value="">เลือกบัญชี</option>
-                                        {banks.flatMap(b => b.accounts.map(a => <option key={a.id} value={a.id}>{b.shortName} - {a.name}</option>))}
+                                        {allAccounts.map(a => <option key={a.id} value={a.id}>{a.bankName} - {a.name}</option>)}
                                     </select>
-                                    <input type="text" placeholder="บันทึกช่วยจำ" className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} />
-                                    <button onClick={saveTx} className={`w-full py-5 rounded-3xl text-white font-black text-lg ${txType === 'expense' ? 'bg-rose-500' : 'bg-emerald-500'}`}>ยืนยันบันทึก</button>
+                                    <input type="text" placeholder="บันทึกช่วยจำ" className="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none" value={txForm.title} onChange={e=>setTxForm({...txForm, title:e.target.value})} />
+                                    <button onClick={handleSaveTx} className={`w-full py-5 rounded-3xl text-white font-black text-lg ${txType==='expense'?'bg-rose-500':'bg-emerald-500 shadow-emerald-200 shadow-lg'}`}>ยืนยันบันทึก</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 5. Modal: เพิ่มบัญชี */}
+                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${showAccModal ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${showAccModal ? 'active' : ''}`}>
+                                <div className="flex justify-between items-center mb-8"><h4 className="text-xl font-black">เพิ่มบัญชีใหม่</h4><button onClick={()=>setShowAccModal(false)}><Lucide name="X" size={24}/></button></div>
+                                <div className="space-y-4">
+                                    <select className="w-full p-4 bg-slate-100 rounded-2xl font-bold appearance-none outline-none" value={accForm.bankId} onChange={e=>setAccForm({...accForm, bankId:e.target.value})}>
+                                        {THAI_BANKS.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                    </select>
+                                    <input type="text" placeholder="ชื่อบัญชี (เช่น เงินเดือน, เงินเก็บ)" className="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none" value={accForm.name} onChange={e=>setAccForm({...accForm, name:e.target.value})} />
+                                    <input type="number" placeholder="ยอดเงินเริ่มต้น" className="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none text-xl" value={accForm.balance} onChange={e=>setAccForm({...accForm, balance:e.target.value})} />
+                                    <button onClick={handleAddAccount} className="w-full py-5 bg-blue-600 text-white rounded-3xl font-black text-lg shadow-lg shadow-blue-200">ยืนยันการเพิ่ม</button>
                                 </div>
                             </div>
                         </div>
