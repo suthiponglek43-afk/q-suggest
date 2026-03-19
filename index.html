@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Finance | Minimal Portfolio</title>
+    <title>My Finance | Minimal Bar Chart</title>
     
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#ffffff">
@@ -25,10 +25,10 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .slide-up { transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .slide-up.active { transform: translateY(0); }
+        .bar-transition { transition: height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
         
-        /* ปรับสีหน้าลงทุนใหม่ให้เรียบง่าย (Minimal Style) */
-        .investment-card { background-color: #F8FAFC; border: 1px solid #E2E8F0; } /* เทาอ่อนมาก-ขาว */
-        .investment-icon { background-color: #E2E8F0; color: #64748B; } /* เทาเงิน */
+        .investment-card { background-color: #F8FAFC; border: 1px solid #E2E8F0; }
+        .investment-icon { background-color: #E2E8F0; color: #64748B; }
     </style>
 </head>
 <body>
@@ -37,7 +37,6 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
-        // --- Helper: Lucide Icon Component ---
         const Lucide = ({ name, size = 24, className = "" }) => {
             useEffect(() => {
                 if (window.lucide) {
@@ -65,24 +64,23 @@
             const [analysisPeriod, setAnalysisPeriod] = useState('เดือน');
             const [expandedBank, setExpandedBank] = useState(null);
 
-            // --- Database (Starts at 0) ---
-            const [cash, setCash] = useState(() => Number(localStorage.getItem('f_cash_v8')) || 0);
-            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem('f_banks_v8')) || []);
-            const [investments, setInvestments] = useState(() => JSON.parse(localStorage.getItem('f_inv_v8')) || []);
-            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem('f_tx_v8')) || []);
+            const DB_KEY = "f_data_v9";
+            const [cash, setCash] = useState(() => Number(localStorage.getItem(DB_KEY + '_cash')) || 0);
+            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_banks')) || []);
+            const [investments, setInvestments] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_inv')) || []);
+            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_tx')) || []);
 
-            // --- Form States ---
             const [txForm, setTxForm] = useState({ amount: '', title: '', sourceId: 'cash' });
             const [accForm, setAccForm] = useState({ bankId: 'kbank', name: '', balance: '' });
             const [invForm, setInvForm] = useState({ name: '', type: 'หุ้น', val: '' });
 
             useEffect(() => {
-                localStorage.setItem('f_cash_v8', cash);
-                localStorage.setItem('f_banks_v8', JSON.stringify(banks));
-                localStorage.setItem('f_inv_v8', JSON.stringify(investments));
-                localStorage.setItem('f_tx_v8', JSON.stringify(transactions));
+                localStorage.setItem(DB_KEY + '_cash', cash);
+                localStorage.setItem(DB_KEY + '_banks', JSON.stringify(banks));
+                localStorage.setItem(DB_KEY + '_inv', JSON.stringify(investments));
+                localStorage.setItem(DB_KEY + '_tx', JSON.stringify(transactions));
                 if (window.lucide) window.lucide.createIcons();
-            }, [cash, banks, investments, transactions, activeTab, modals, expandedBank]);
+            }, [cash, banks, investments, transactions, activeTab, modals, expandedBank, analysisPeriod]);
 
             const totals = useMemo(() => {
                 const bankSum = banks.reduce((a, b) => a + b.accounts.reduce((ac, s) => ac + s.balance, 0), 0);
@@ -90,6 +88,10 @@
                 const periodExpense = transactions.filter(t => t.type === 'expense').reduce((a, t) => a + Math.abs(t.amount), 0);
                 return { netWorth: bankSum + cash + invSum, invSum, periodExpense };
             }, [banks, cash, investments, transactions]);
+
+            // Mock comparison data
+            const comparisonData = { prev: 28800, current: totals.periodExpense };
+            const maxVal = Math.max(comparisonData.prev, comparisonData.current, 1000);
 
             const allSources = [{ id: 'cash', name: 'เงินสด', bankName: 'Cash' }, ...banks.flatMap(b => b.accounts.map(a => ({ ...a, bankName: b.shortName })))];
 
@@ -149,17 +151,15 @@
                             </div>
                         </div>
 
-                        {/* Content Scroll Area */}
+                        {/* Content Area */}
                         <div className="flex-1 px-6 pt-2 pb-32 overflow-y-auto no-scrollbar bg-slate-50/30">
                             
-                            {/* HOME TAB */}
                             {activeTab === 'home' && (
                                 <div className="space-y-6 animate-in">
                                     <div className="bg-white border border-slate-100 rounded-[32px] p-6 flex justify-between items-center shadow-sm">
-                                        <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">เงินสดในกระเป๋า</p><h3 className="text-2xl font-bold text-slate-800">฿{cash.toLocaleString()}</h3></div>
+                                        <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">เงินสดในกระเป๋า</p><h3 className="text-2xl font-bold text-gray-800">฿{cash.toLocaleString()}</h3></div>
                                         <div className="w-12 h-12 bg-orange-50 text-orange-400 rounded-2xl flex items-center justify-center"><Lucide name="Banknote" size={24}/></div>
                                     </div>
-
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center px-1 font-bold text-slate-800"><h3>บัญชีธนาคาร</h3><button onClick={()=>setModals({...modals, acc:true})} className="text-blue-600 text-xs font-bold">+ เพิ่มบัญชี</button></div>
                                         {banks.map(b => (
@@ -180,70 +180,67 @@
                                                 )}
                                             </div>
                                         ))}
-                                        {banks.length === 0 && <p className="text-center py-10 text-slate-300 text-xs italic">เริ่มบันทึกข้อมูลธนาคารของคุณได้เลย</p>}
                                     </div>
                                 </div>
                             )}
 
-                            {/* INVEST TAB (Minimal Redesign) */}
                             {activeTab === 'invest' && (
                                 <div className="space-y-6 animate-in">
                                     <div className="flex justify-between items-center px-1"><h3 className="font-bold text-xl text-slate-800">การลงทุน</h3><button onClick={()=>setModals({...modals, inv:true})} className="p-2 bg-indigo-600 text-white rounded-full shadow-lg"><Lucide name="Plus" size={20}/></button></div>
-                                    
-                                    {/* ปรับปรุงหน้าต่างยอดรวมพอร์ตให้เรียบง่าย (Minimal Card) */}
                                     <div className="investment-card rounded-[35px] p-8 shadow-sm relative overflow-hidden">
                                         <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">พอร์ตลงทุนรวมทั้งหมด</p>
                                         <h4 className="text-4xl font-black text-slate-900 mt-2">฿{totals.invSum.toLocaleString()}</h4>
                                         <div className="absolute right-0 bottom-0 p-8 opacity-10 text-slate-400"><Lucide name="TrendingUp" size={80}/></div>
                                     </div>
-
-                                    {/* รายการพอร์ตย่อย (Minimal List) */}
                                     <div className="space-y-3">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">พอร์ตย่อยของคุณ</p>
                                         {investments.map(inv => (
                                             <div key={inv.id} className="bg-white p-5 rounded-[30px] border border-slate-100 flex justify-between items-center shadow-sm">
                                                 <div className="flex items-center gap-4">
-                                                    {/* ไอคอนสีเรียบ */}
                                                     <div className="w-12 h-12 investment-icon rounded-2xl flex items-center justify-center">
                                                         <Lucide name={inv.type === 'หุ้น' ? 'BarChart3' : inv.type === 'คริปโต' ? 'Zap' : 'Coins'} size={24}/>
                                                     </div>
                                                     <div><p className="font-bold text-slate-800 text-sm">{inv.name}</p><p className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">{inv.type}</p></div>
                                                 </div>
-                                                <div className="text-right"><p className="font-black text-slate-800">฿{Number(inv.val).toLocaleString()}</p><p className="text-[9px] text-emerald-500 font-bold">+0.00%</p></div>
+                                                <p className="font-black text-slate-800">฿{Number(inv.val).toLocaleString()}</p>
                                             </div>
                                         ))}
-                                        {investments.length === 0 && <p className="text-center py-10 text-slate-300 text-xs italic">กดปุ่ม + เพื่อสร้างพอร์ตการลงทุนของคุณ</p>}
                                     </div>
                                 </div>
                             )}
 
-                            {/* STATS TAB */}
                             {activeTab === 'stats' && (
                                 <div className="space-y-8 animate-in pb-10 text-center">
                                     <h3 className="font-bold text-xl text-slate-800 text-left px-1">วิเคราะห์รายจ่าย</h3>
                                     <div className="flex bg-slate-100 p-1 rounded-2xl">
                                         {['สัปดาห์', 'เดือน', 'ปี'].map(p => <button key={p} onClick={()=>setAnalysisPeriod(p)} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${analysisPeriod===p?'bg-white shadow-sm text-slate-900':'text-slate-400'}`}>{p}</button>)}
                                     </div>
+                                    
                                     <div className="bg-white p-8 rounded-[40px] shadow-sm flex flex-col items-center">
-                                        <div className="relative w-48 h-48 flex items-center justify-center">
-                                            <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                                                <circle cx="18" cy="18" r="16" fill="none" stroke="#F1F5F9" strokeWidth="3"></circle>
-                                                <circle cx="18" cy="18" r="16" fill="none" stroke="#3B82F6" strokeWidth="3" strokeDasharray="60, 100"></circle>
-                                            </svg>
-                                            <div className="absolute flex flex-col items-center">
-                                                <p className="text-[10px] text-slate-400">{analysisPeriod}นี้</p>
-                                                <p className="text-2xl font-black">฿{totals.periodExpense.toLocaleString()}</p>
+                                        {/* BAR CHART SECTION */}
+                                        <div className="w-full flex items-end justify-around h-48 gap-8 px-4">
+                                            <div className="flex-1 flex flex-col items-center gap-3">
+                                                <div className="w-full bg-slate-100 rounded-2xl relative h-full overflow-hidden">
+                                                    <div className="absolute bottom-0 w-full bg-slate-200 rounded-2xl bar-transition" style={{height: `${(comparisonData.prev / maxVal) * 100}%`}}></div>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase">ก่อนหน้า</p>
+                                                <p className="text-xs font-black text-slate-300 leading-none">฿{(comparisonData.prev/1000).toFixed(1)}k</p>
+                                            </div>
+                                            <div className="flex-1 flex flex-col items-center gap-3">
+                                                <div className="w-full bg-slate-50 rounded-2xl relative h-full overflow-hidden border border-blue-50">
+                                                    <div className="absolute bottom-0 w-full bg-blue-500 rounded-2xl bar-transition shadow-lg shadow-blue-100" style={{height: `${(comparisonData.current / maxVal) * 100}%`}}></div>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-blue-600 uppercase">{analysisPeriod}นี้</p>
+                                                <p className="text-sm font-black text-slate-900 leading-none">฿{(comparisonData.current/1000).toFixed(1)}k</p>
                                             </div>
                                         </div>
-                                        <div className="w-full mt-10 pt-8 border-t border-slate-50 flex items-end justify-around h-24 gap-4">
-                                            <div className="flex-1 flex flex-col items-center gap-2"><div className="w-full bg-slate-100 rounded-t-xl h-[50%]"></div><p className="text-[9px] font-bold text-slate-400">ก่อนหน้า</p></div>
-                                            <div className="flex-1 flex flex-col items-center gap-2"><div className="w-full bg-blue-500 rounded-t-xl h-[85%]"></div><p className="text-[9px] font-bold text-slate-900">{analysisPeriod}นี้</p></div>
+                                        <div className="w-full mt-10 pt-8 border-t border-slate-50 flex justify-between items-center">
+                                            <div className="text-left"><p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">ยอดรวม {analysisPeriod}นี้</p><h4 className="text-xl font-bold text-slate-800 leading-none">฿{totals.periodExpense.toLocaleString()}</h4></div>
+                                            <span className="text-emerald-500 font-bold text-[10px] bg-emerald-50 px-2 py-1 rounded-lg">+12.4%</span>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* HISTORY TAB */}
                             {activeTab === 'history' && (
                                 <div className="space-y-4 animate-in">
                                     <h3 className="font-bold text-xl text-slate-800 mb-4 px-1">ประวัติรายการ</h3>
@@ -256,14 +253,12 @@
                                             <div className="text-right font-bold"><p className={t.type==='income'?'text-emerald-600':'text-slate-800'}>฿{Math.abs(t.amount).toLocaleString()}</p><p className="text-[9px] text-slate-300">{t.date}</p></div>
                                         </div>
                                     ))}
-                                    {transactions.length === 0 && <div className="text-center py-20 italic text-slate-300 text-sm">ไม่มีประวัติ</div>}
                                 </div>
                             )}
 
-                            {/* MENU TAB */}
                             {activeTab === 'menu' && (
                                 <div className="space-y-6 animate-in">
-                                    <h3 className="font-bold text-xl text-slate-800">เมนู</h3>
+                                    <h3 className="font-bold text-xl text-slate-800 px-1">เมนู</h3>
                                     <div className="bg-white rounded-[32px] border border-slate-100 divide-y divide-slate-50 overflow-hidden shadow-sm">
                                         <button onClick={()=>setActiveTab('home')} className="w-full p-5 flex justify-between items-center hover:bg-slate-50 text-sm font-bold text-slate-700">บัญชีธนาคารและบัตร<Lucide name="ChevronRight" size={16} className="text-slate-200"/></button>
                                         <button onClick={()=>setActiveTab('invest')} className="w-full p-5 flex justify-between items-center hover:bg-slate-50 text-sm font-bold text-slate-700">พอร์ตการลงทุน<Lucide name="ChevronRight" size={16} className="text-slate-200"/></button>
@@ -283,7 +278,7 @@
                                 {id:'stats', icon:'PieChart', label:'Stats'},
                                 {id:'menu', icon:'Settings', label:'Menu'}
                             ].map(t => (
-                                <button key={t.id} onClick={()=>setActiveTab(t.id)} className={`flex flex-col items-center gap-1 transition-all ${activeTab===t.id?'text-indigo-600 -translate-y-1':'text-slate-300'}`}>
+                                <button key={t.id} onClick={()=>setActiveTab(t.id)} className={`flex flex-col items-center gap-1 transition-all ${activeTab===t.id?'text-blue-600 -translate-y-1':'text-slate-300'}`}>
                                     <Lucide name={t.icon} size={24} />
                                     <span className="text-[8px] font-black uppercase tracking-wider">{t.label}</span>
                                 </button>
@@ -291,42 +286,39 @@
                         </div>
 
                         {/* MODALS */}
-                        {/* Transaction Modal */}
-                        <div className={`absolute inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.tx?'opacity-100':'opacity-0 pointer-events-none'}`}>
+                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.tx?'opacity-100':'opacity-0 pointer-events-none'}`}>
                             <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${modals.tx?'active':''}`}>
                                 <div className="flex justify-between items-center mb-6 font-black text-xl text-slate-800"><h4>บันทึกรายการ</h4><button onClick={()=>setModals({...modals,tx:false})}><Lucide name="X" size={24}/></button></div>
-                                <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8"><button onClick={()=>setTxType('expense')} className={`flex-1 py-3 text-xs font-bold rounded-xl ${txType==='expense'?'bg-white text-rose-600 shadow-sm':'text-slate-400'}`}>รายจ่าย</button><button onClick={()=>setTxType('income')} className={`flex-1 py-3 text-xs font-bold rounded-xl ${txType==='income'?'bg-white text-emerald-600 shadow-sm':'text-slate-400'}`}>รายรับ</button></div>
+                                <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8"><button onClick={()=>setTxType('expense')} className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all ${txType==='expense'?'bg-white shadow-sm text-rose-600':'text-slate-400'}`}>รายจ่าย</button><button onClick={()=>setTxType('income')} className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all ${txType==='income'?'bg-white shadow-sm text-emerald-600':'text-slate-400'}`}>รายรับ</button></div>
                                 <div className="space-y-6">
                                     <input type="number" placeholder="0.00" className={`w-full text-5xl font-black text-center outline-none bg-transparent ${txType==='expense'?'text-rose-500':'text-emerald-500'}`} value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})}/>
                                     <select className="w-full p-4 bg-gray-50 rounded-2xl font-bold border border-gray-100 outline-none" value={txForm.sourceId} onChange={e=>setTxForm({...txForm,sourceId:e.target.value})}>{allSources.map(s => <option key={s.id} value={s.id}>{s.bankName} - {s.name||'หลัก'}</option>)}</select>
                                     <input type="text" placeholder="ระบุรายการ..." className="w-full p-4 bg-gray-50 rounded-2xl font-bold border border-gray-100 outline-none" value={txForm.title} onChange={e=>setTxForm({...txForm,title:e.target.value})}/>
-                                    <button onClick={saveTx} className={`w-full py-5 rounded-[32px] text-white font-black text-lg shadow-xl ${txType==='expense'?'bg-rose-500':'bg-emerald-500'}`}>ยืนยันการบันทึก</button>
+                                    <button onClick={handleSaveTx} className={`w-full py-5 rounded-[32px] text-white font-bold text-lg shadow-xl ${txType==='expense'?'bg-rose-500':'bg-emerald-500'}`}>ยืนยันการบันทึก</button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Account Modal */}
-                        <div className={`absolute inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.acc?'opacity-100':'opacity-0 pointer-events-none'}`}>
+                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.acc?'opacity-100':'opacity-0 pointer-events-none'}`}>
                             <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${modals.acc?'active':''}`}>
                                 <h4 className="font-bold text-gray-800 mb-6 text-xl">เพิ่มธนาคาร/บัญชี</h4>
                                 <div className="space-y-4">
                                     <select className="w-full p-4 bg-gray-50 rounded-2xl font-bold border border-gray-100 outline-none" value={accForm.bankId} onChange={e=>setAccForm({...accForm,bankId:e.target.value})}>{THAI_BANKS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>
-                                    <input type="text" placeholder="ชื่อบัญชี (เงินเก็บ, บัญชีเงินเดือน)" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={accForm.name} onChange={e=>setAccForm({...accForm,name:e.target.value})}/>
+                                    <input type="text" placeholder="ชื่อบัญชี" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={accForm.name} onChange={e=>setAccForm({...accForm,name:e.target.value})}/>
                                     <input type="number" placeholder="ยอดเงินเริ่มต้น" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={accForm.balance} onChange={e=>setAccForm({...accForm,balance:e.target.value})}/>
-                                    <button onClick={addAcc} className="w-full py-5 bg-blue-600 text-white rounded-3xl font-bold text-lg shadow-lg active:scale-95 transition-all">บันทึกข้อมูล</button>
+                                    <button onClick={addAcc} className="w-full py-5 bg-blue-600 text-white rounded-3xl font-bold text-lg shadow-lg">บันทึกข้อมูล</button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Invest Modal */}
-                        <div className={`absolute inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.inv?'opacity-100':'opacity-0 pointer-events-none'}`}>
+                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.inv?'opacity-100':'opacity-0 pointer-events-none'}`}>
                             <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${modals.inv?'active':''}`}>
                                 <h4 className="font-bold text-gray-800 mb-6 text-xl">สร้างพอร์ตลงทุน</h4>
                                 <div className="space-y-4">
-                                    <input type="text" placeholder="ชื่อพอร์ต (หุ้นสหรัฐฯ, BTC)" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={invForm.name} onChange={e=>setInvForm({...invForm,name:e.target.value})}/>
-                                    <select className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" value={invForm.type} onChange={e=>setInvForm({...invForm,type:e.target.value})}><option>หุ้น</option><option>คริปโต</option><option>ทองคำ</option><option>อื่นๆ</option></select>
+                                    <input type="text" placeholder="ชื่อพอร์ต" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={invForm.name} onChange={e=>setInvForm({...invForm,name:e.target.value})}/>
+                                    <select className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" value={invForm.type} onChange={e=>setInvForm({...invForm,type:e.target.value})}><option>หุ้น</option><option>คริปโต</option><option>ทองคำ</option></select>
                                     <input type="number" placeholder="มูลค่าพอร์ต" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={invForm.val} onChange={e=>setInvForm({...invForm,val:e.target.value})}/>
-                                    <button onClick={()=>{setInvestments([...investments,{id:Date.now(),...invForm}]);setModals({...modals,inv:false});setInvForm({name:'',type:'หุ้น',val:''})}} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black text-lg shadow-lg active:scale-95 transition-all">บันทึกพอร์ต</button>
+                                    <button onClick={()=>{setInvestments([...investments,{id:Date.now(),...invForm}]);setModals({...modals,inv:false});setInvForm({name:'',type:'หุ้น',val:''})}} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-bold text-lg shadow-lg">บันทึกพอร์ต</button>
                                 </div>
                             </div>
                         </div>
@@ -339,12 +331,9 @@
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
 
-        // --- 3. Register Service Worker (PWA Offline) ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('PWA Offline mode ready!'))
-                    .catch(err => console.log('Error registering Service Worker:', err));
+                navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Error:', err));
             });
         }
     </script>
