@@ -3,13 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Finance | Minimal Bar Chart</title>
-    
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#ffffff">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>My Finance | Professional Pro</title>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -26,7 +20,6 @@
         .slide-up { transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .slide-up.active { transform: translateY(0); }
         .bar-transition { transition: height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        
         .investment-card { background-color: #F8FAFC; border: 1px solid #E2E8F0; }
         .investment-icon { background-color: #E2E8F0; color: #64748B; }
     </style>
@@ -37,6 +30,7 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
+        // --- Helper: Lucide Icon Component ---
         const Lucide = ({ name, size = 24, className = "" }) => {
             useEffect(() => {
                 if (window.lucide) {
@@ -51,9 +45,7 @@
             { id: 'scb', name: 'ไทยพาณิชย์', shortName: 'SCB', color: 'bg-purple-700' },
             { id: 'bbl', name: 'กรุงเทพ', shortName: 'BBL', color: 'bg-blue-800' },
             { id: 'ktb', name: 'กรุงไทย', shortName: 'KTB', color: 'bg-sky-500' },
-            { id: 'bay', name: 'กรุงศรีฯ', shortName: 'BAY', color: 'bg-yellow-500' },
-            { id: 'ttb', name: 'ทหารไทยธนชาต', shortName: 'TTB', color: 'bg-blue-600' },
-            { id: 'gsb', name: 'ออมสิน', shortName: 'GSB', color: 'bg-pink-500' }
+            { id: 'bay', name: 'กรุงศรีฯ', shortName: 'BAY', color: 'bg-yellow-500' }
         ];
 
         function App() {
@@ -64,21 +56,17 @@
             const [analysisPeriod, setAnalysisPeriod] = useState('เดือน');
             const [expandedBank, setExpandedBank] = useState(null);
 
-            const DB_KEY = "f_data_v9";
-            const [cash, setCash] = useState(() => Number(localStorage.getItem(DB_KEY + '_cash')) || 0);
-            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_banks')) || []);
-            const [investments, setInvestments] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_inv')) || []);
-            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_tx')) || []);
-
-            const [txForm, setTxForm] = useState({ amount: '', title: '', sourceId: 'cash' });
-            const [accForm, setAccForm] = useState({ bankId: 'kbank', name: '', balance: '' });
-            const [invForm, setInvForm] = useState({ name: '', type: 'หุ้น', val: '' });
+            const DB_VERSION = "v10"; 
+            const [cash, setCash] = useState(() => Number(localStorage.getItem(`f_cash_${DB_VERSION}`)) || 0);
+            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem(`f_banks_${DB_VERSION}`)) || []);
+            const [investments, setInvestments] = useState(() => JSON.parse(localStorage.getItem(`f_inv_${DB_VERSION}`)) || []);
+            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem(`f_tx_${DB_VERSION}`)) || []);
 
             useEffect(() => {
-                localStorage.setItem(DB_KEY + '_cash', cash);
-                localStorage.setItem(DB_KEY + '_banks', JSON.stringify(banks));
-                localStorage.setItem(DB_KEY + '_inv', JSON.stringify(investments));
-                localStorage.setItem(DB_KEY + '_tx', JSON.stringify(transactions));
+                localStorage.setItem(`f_cash_${DB_VERSION}`, cash);
+                localStorage.setItem(`f_banks_${DB_VERSION}`, JSON.stringify(banks));
+                localStorage.setItem(`f_inv_${DB_VERSION}`, JSON.stringify(investments));
+                localStorage.setItem(`f_tx_${DB_VERSION}`, JSON.stringify(transactions));
                 if (window.lucide) window.lucide.createIcons();
             }, [cash, banks, investments, transactions, activeTab, modals, expandedBank, analysisPeriod]);
 
@@ -89,11 +77,14 @@
                 return { netWorth: bankSum + cash + invSum, invSum, periodExpense };
             }, [banks, cash, investments, transactions]);
 
-            // Mock comparison data
             const comparisonData = { prev: 28800, current: totals.periodExpense };
             const maxVal = Math.max(comparisonData.prev, comparisonData.current, 1000);
 
             const allSources = [{ id: 'cash', name: 'เงินสด', bankName: 'Cash' }, ...banks.flatMap(b => b.accounts.map(a => ({ ...a, bankName: b.shortName })))];
+
+            const [txForm, setTxForm] = useState({ amount: '', title: '', sourceId: 'cash' });
+            const [accForm, setAccForm] = useState({ bankId: 'kbank', name: '', balance: '' });
+            const [invForm, setInvForm] = useState({ name: '', type: 'หุ้น', val: '' });
 
             const saveTx = () => {
                 const amt = parseFloat(txForm.amount);
@@ -120,7 +111,7 @@
             };
 
             const addAcc = () => {
-                if(!accForm.name || !accForm.balance) return alert("กรุณากรอกข้อมูล");
+                if(!accForm.name || !accForm.balance) return alert("กรุณากรอกข้อมูลให้ครบ");
                 const base = THAI_BANKS.find(b => b.id === accForm.bankId);
                 const newAcc = { id: Date.now(), name: accForm.name, balance: parseFloat(accForm.balance) };
                 const idx = banks.findIndex(b => b.id === accForm.bankId);
@@ -137,10 +128,10 @@
                 <div className="min-h-screen flex justify-center bg-gray-200 sm:py-10">
                     <div className="w-full max-w-md bg-white sm:rounded-[48px] shadow-2xl relative flex flex-col h-screen overflow-hidden border-[6px] border-white">
                         
-                        {/* Header Section */}
-                        <div className="pt-12 pb-6 px-8 bg-white z-10 text-center shrink-0">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Net Worth รวม</p>
-                            <h2 className="text-4xl font-black text-slate-900 tracking-tighter mt-2">
+                        {/* HEADER */}
+                        <div className="pt-12 pb-6 px-8 bg-white text-center z-10 shrink-0">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Net Worth รวม</p>
+                            <h2 className="text-4xl font-black text-slate-900 tracking-tighter mt-1">
                                 {showBalance ? `฿${totals.netWorth.toLocaleString()}` : '••••••••••'}
                             </h2>
                             <div className="flex justify-center gap-3 mt-8">
@@ -151,17 +142,17 @@
                             </div>
                         </div>
 
-                        {/* Content Area */}
+                        {/* CONTENT AREA */}
                         <div className="flex-1 px-6 pt-2 pb-32 overflow-y-auto no-scrollbar bg-slate-50/30">
                             
                             {activeTab === 'home' && (
                                 <div className="space-y-6 animate-in">
                                     <div className="bg-white border border-slate-100 rounded-[32px] p-6 flex justify-between items-center shadow-sm">
-                                        <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">เงินสดในกระเป๋า</p><h3 className="text-2xl font-bold text-gray-800">฿{cash.toLocaleString()}</h3></div>
+                                        <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">เงินสด</p><h3 className="text-2xl font-bold text-gray-800">฿{cash.toLocaleString()}</h3></div>
                                         <div className="w-12 h-12 bg-orange-50 text-orange-400 rounded-2xl flex items-center justify-center"><Lucide name="Banknote" size={24}/></div>
                                     </div>
                                     <div className="space-y-3">
-                                        <div className="flex justify-between items-center px-1 font-bold text-slate-800"><h3>บัญชีธนาคาร</h3><button onClick={()=>setModals({...modals, acc:true})} className="text-blue-600 text-xs font-bold">+ เพิ่มบัญชี</button></div>
+                                        <div className="flex justify-between items-center font-bold text-slate-800 px-1"><h3>บัญชีธนาคาร</h3><button onClick={()=>setModals({...modals, acc:true})} className="text-blue-600 text-xs font-bold">+ เพิ่มบัญชี</button></div>
                                         {banks.map(b => (
                                             <div key={b.id} className="bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden">
                                                 <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50" onClick={() => setExpandedBank(expandedBank === b.id ? null : b.id)}>
@@ -172,9 +163,9 @@
                                                     <Lucide name={expandedBank === b.id ? "ChevronUp" : "ChevronDown"} size={16} className="text-slate-300"/>
                                                 </div>
                                                 {expandedBank === b.id && (
-                                                    <div className="px-4 pb-4 space-y-3 bg-slate-50/50 pt-2 border-t border-slate-50 animation-in">
+                                                    <div className="px-4 pb-4 space-y-3 bg-slate-50/50 pt-2 border-t border-slate-50">
                                                         {b.accounts.map(acc => (
-                                                            <div key={acc.id} className="flex justify-between text-xs font-medium text-slate-600 pl-12 italic"><span>{acc.name}</span><span>฿{acc.balance.toLocaleString()}</span></div>
+                                                            <div key={acc.id} className="flex justify-between text-xs font-medium text-slate-600 pl-12"><span>{acc.name}</span><span className="font-bold">฿{acc.balance.toLocaleString()}</span></div>
                                                         ))}
                                                     </div>
                                                 )}
@@ -186,7 +177,7 @@
 
                             {activeTab === 'invest' && (
                                 <div className="space-y-6 animate-in">
-                                    <div className="flex justify-between items-center px-1"><h3 className="font-bold text-xl text-slate-800">การลงทุน</h3><button onClick={()=>setModals({...modals, inv:true})} className="p-2 bg-indigo-600 text-white rounded-full shadow-lg"><Lucide name="Plus" size={20}/></button></div>
+                                    <div className="flex justify-between items-center px-1 font-bold text-slate-800"><h3>การลงทุน</h3><button onClick={()=>setModals({...modals, inv:true})} className="p-2 bg-indigo-600 text-white rounded-full"><Lucide name="Plus" size={20}/></button></div>
                                     <div className="investment-card rounded-[35px] p-8 shadow-sm relative overflow-hidden">
                                         <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">พอร์ตลงทุนรวมทั้งหมด</p>
                                         <h4 className="text-4xl font-black text-slate-900 mt-2">฿{totals.invSum.toLocaleString()}</h4>
@@ -196,10 +187,8 @@
                                         {investments.map(inv => (
                                             <div key={inv.id} className="bg-white p-5 rounded-[30px] border border-slate-100 flex justify-between items-center shadow-sm">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 investment-icon rounded-2xl flex items-center justify-center">
-                                                        <Lucide name={inv.type === 'หุ้น' ? 'BarChart3' : inv.type === 'คริปโต' ? 'Zap' : 'Coins'} size={24}/>
-                                                    </div>
-                                                    <div><p className="font-bold text-slate-800 text-sm">{inv.name}</p><p className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">{inv.type}</p></div>
+                                                    <div className="w-12 h-12 investment-icon rounded-2xl flex items-center justify-center"><Lucide name="BarChart3" size={24}/></div>
+                                                    <div><p className="font-bold text-slate-800 text-sm">{inv.name}</p><p className="text-[10px] text-slate-400 font-bold uppercase">{inv.type}</p></div>
                                                 </div>
                                                 <p className="font-black text-slate-800">฿{Number(inv.val).toLocaleString()}</p>
                                             </div>
@@ -216,21 +205,18 @@
                                     </div>
                                     
                                     <div className="bg-white p-8 rounded-[40px] shadow-sm flex flex-col items-center">
-                                        {/* BAR CHART SECTION */}
                                         <div className="w-full flex items-end justify-around h-48 gap-8 px-4">
                                             <div className="flex-1 flex flex-col items-center gap-3">
                                                 <div className="w-full bg-slate-100 rounded-2xl relative h-full overflow-hidden">
                                                     <div className="absolute bottom-0 w-full bg-slate-200 rounded-2xl bar-transition" style={{height: `${(comparisonData.prev / maxVal) * 100}%`}}></div>
                                                 </div>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase">ก่อนหน้า</p>
-                                                <p className="text-xs font-black text-slate-300 leading-none">฿{(comparisonData.prev/1000).toFixed(1)}k</p>
                                             </div>
                                             <div className="flex-1 flex flex-col items-center gap-3">
                                                 <div className="w-full bg-slate-50 rounded-2xl relative h-full overflow-hidden border border-blue-50">
-                                                    <div className="absolute bottom-0 w-full bg-blue-500 rounded-2xl bar-transition shadow-lg shadow-blue-100" style={{height: `${(comparisonData.current / maxVal) * 100}%`}}></div>
+                                                    <div className="absolute bottom-0 w-full bg-blue-500 rounded-2xl bar-transition shadow-lg" style={{height: `${(comparisonData.current / maxVal) * 100}%`}}></div>
                                                 </div>
                                                 <p className="text-[10px] font-bold text-blue-600 uppercase">{analysisPeriod}นี้</p>
-                                                <p className="text-sm font-black text-slate-900 leading-none">฿{(comparisonData.current/1000).toFixed(1)}k</p>
                                             </div>
                                         </div>
                                         <div className="w-full mt-10 pt-8 border-t border-slate-50 flex justify-between items-center">
@@ -242,17 +228,18 @@
                             )}
 
                             {activeTab === 'history' && (
-                                <div className="space-y-4 animate-in">
+                                <div className="space-y-4 animate-in pb-10">
                                     <h3 className="font-bold text-xl text-slate-800 mb-4 px-1">ประวัติรายการ</h3>
                                     {transactions.map(t => (
                                         <div key={t.id} className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm flex justify-between items-center">
                                             <div className="flex items-center gap-4">
                                                 <div className={`p-3 rounded-2xl ${t.type==='income'?'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}><Lucide name={t.type==='income'?'ArrowDownLeft':'ArrowUpRight'} size={18}/></div>
-                                                <div><p className="font-bold text-sm text-slate-800">{t.title}</p><p className="text-[10px] text-slate-400">{t.accLabel}</p></div>
+                                                <div><p className="font-bold text-sm text-slate-800">{t.title}</p><p className="text-[10px] text-slate-400">{t.label}</p></div>
                                             </div>
-                                            <div className="text-right font-bold"><p className={t.type==='income'?'text-emerald-600':'text-slate-800'}>฿{Math.abs(t.amount).toLocaleString()}</p><p className="text-[9px] text-slate-300">{t.date}</p></div>
+                                            <div className="text-right font-bold"><p className={t.type==='income'?'text-emerald-600':'text-slate-800'}>฿{Math.abs(t.amount).toLocaleString()}</p></div>
                                         </div>
                                     ))}
+                                    {transactions.length === 0 && <div className="text-center py-20 italic text-slate-300 text-sm">ไม่มีประวัติ</div>}
                                 </div>
                             )}
 
@@ -262,14 +249,14 @@
                                     <div className="bg-white rounded-[32px] border border-slate-100 divide-y divide-slate-50 overflow-hidden shadow-sm">
                                         <button onClick={()=>setActiveTab('home')} className="w-full p-5 flex justify-between items-center hover:bg-slate-50 text-sm font-bold text-slate-700">บัญชีธนาคารและบัตร<Lucide name="ChevronRight" size={16} className="text-slate-200"/></button>
                                         <button onClick={()=>setActiveTab('invest')} className="w-full p-5 flex justify-between items-center hover:bg-slate-50 text-sm font-bold text-slate-700">พอร์ตการลงทุน<Lucide name="ChevronRight" size={16} className="text-slate-200"/></button>
-                                        <button onClick={()=>setActiveTab('stats')} className="w-full p-5 flex justify-between items-center hover:bg-slate-50 text-sm font-bold text-slate-700">วิเคราะห์ข้อมูลรายจ่าย<Lucide name="ChevronRight" size={16} className="text-slate-200"/></button>
+                                        <button onClick={()=>setActiveTab('stats')} className="w-full p-5 flex justify-between items-center hover:bg-slate-50 text-sm font-bold text-slate-700">วิเคราะห์รายจ่าย<Lucide name="ChevronRight" size={16} className="text-slate-200"/></button>
                                         <button onClick={()=>{if(confirm('ล้างข้อมูลทั้งหมด?')){localStorage.clear();location.reload();}}} className="w-full p-5 flex justify-between items-center text-rose-500 text-sm font-bold">ล้างข้อมูลและเริ่มใหม่<Lucide name="Trash2" size={16}/></button>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* Bottom Navigation */}
+                        {/* NAVIGATION BAR */}
                         <div className="absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-100 px-8 py-5 flex justify-between items-center pb-8 z-20 shrink-0">
                             {[
                                 {id:'home', icon:'Wallet', label:'Wallet'},
@@ -286,39 +273,42 @@
                         </div>
 
                         {/* MODALS */}
-                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.tx?'opacity-100':'opacity-0 pointer-events-none'}`}>
+                        {/* Transaction Modal */}
+                        <div className={`absolute inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.tx?'opacity-100':'opacity-0 pointer-events-none'}`}>
                             <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${modals.tx?'active':''}`}>
                                 <div className="flex justify-between items-center mb-6 font-black text-xl text-slate-800"><h4>บันทึกรายการ</h4><button onClick={()=>setModals({...modals,tx:false})}><Lucide name="X" size={24}/></button></div>
-                                <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8"><button onClick={()=>setTxType('expense')} className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all ${txType==='expense'?'bg-white shadow-sm text-rose-600':'text-slate-400'}`}>รายจ่าย</button><button onClick={()=>setTxType('income')} className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all ${txType==='income'?'bg-white shadow-sm text-emerald-600':'text-slate-400'}`}>รายรับ</button></div>
+                                <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8"><button onClick={()=>setTxType('expense')} className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all ${txType === 'expense' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-400'}`}>รายจ่าย</button><button onClick={()=>setTxType('income')} className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all ${txType === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400'}`}>รายรับ</button></div>
                                 <div className="space-y-6">
                                     <input type="number" placeholder="0.00" className={`w-full text-5xl font-black text-center outline-none bg-transparent ${txType==='expense'?'text-rose-500':'text-emerald-500'}`} value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})}/>
                                     <select className="w-full p-4 bg-gray-50 rounded-2xl font-bold border border-gray-100 outline-none" value={txForm.sourceId} onChange={e=>setTxForm({...txForm,sourceId:e.target.value})}>{allSources.map(s => <option key={s.id} value={s.id}>{s.bankName} - {s.name||'หลัก'}</option>)}</select>
                                     <input type="text" placeholder="ระบุรายการ..." className="w-full p-4 bg-gray-50 rounded-2xl font-bold border border-gray-100 outline-none" value={txForm.title} onChange={e=>setTxForm({...txForm,title:e.target.value})}/>
-                                    <button onClick={handleSaveTx} className={`w-full py-5 rounded-[32px] text-white font-bold text-lg shadow-xl ${txType==='expense'?'bg-rose-500':'bg-emerald-500'}`}>ยืนยันการบันทึก</button>
+                                    <button onClick={saveTx} className={`w-full py-5 rounded-[32px] text-white font-black text-lg shadow-xl active:scale-95 transition-all ${txType==='expense'?'bg-rose-500':'bg-emerald-500'}`}>ยืนยันการบันทึก</button>
                                 </div>
                             </div>
                         </div>
 
-                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.acc?'opacity-100':'opacity-0 pointer-events-none'}`}>
+                        {/* Account Modal */}
+                        <div className={`absolute inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.acc?'opacity-100':'opacity-0 pointer-events-none'}`}>
                             <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${modals.acc?'active':''}`}>
                                 <h4 className="font-bold text-gray-800 mb-6 text-xl">เพิ่มธนาคาร/บัญชี</h4>
                                 <div className="space-y-4">
                                     <select className="w-full p-4 bg-gray-50 rounded-2xl font-bold border border-gray-100 outline-none" value={accForm.bankId} onChange={e=>setAccForm({...accForm,bankId:e.target.value})}>{THAI_BANKS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>
                                     <input type="text" placeholder="ชื่อบัญชี" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={accForm.name} onChange={e=>setAccForm({...accForm,name:e.target.value})}/>
                                     <input type="number" placeholder="ยอดเงินเริ่มต้น" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={accForm.balance} onChange={e=>setAccForm({...accForm,balance:e.target.value})}/>
-                                    <button onClick={addAcc} className="w-full py-5 bg-blue-600 text-white rounded-3xl font-bold text-lg shadow-lg">บันทึกข้อมูล</button>
+                                    <button onClick={addAcc} className="w-full py-5 bg-blue-600 text-white rounded-3xl font-bold text-lg shadow-lg active:scale-95 transition-all">บันทึกข้อมูล</button>
                                 </div>
                             </div>
                         </div>
 
-                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.inv?'opacity-100':'opacity-0 pointer-events-none'}`}>
+                        {/* Investment Modal */}
+                        <div className={`absolute inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end transition-opacity duration-300 ${modals.inv?'opacity-100':'opacity-0 pointer-events-none'}`}>
                             <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${modals.inv?'active':''}`}>
-                                <h4 className="font-bold text-gray-800 mb-6 text-xl">สร้างพอร์ตลงทุน</h4>
+                                <h4 className="font-bold text-gray-800 mb-6 text-xl text-center">สร้างพอร์ตลงทุน</h4>
                                 <div className="space-y-4">
-                                    <input type="text" placeholder="ชื่อพอร์ต" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={invForm.name} onChange={e=>setInvForm({...invForm,name:e.target.value})}/>
+                                    <input type="text" placeholder="ชื่อพอร์ต (เช่น หุ้นอเมริกา, BTC)" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={invForm.name} onChange={e=>setInvForm({...invForm,name:e.target.value})}/>
                                     <select className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" value={invForm.type} onChange={e=>setInvForm({...invForm,type:e.target.value})}><option>หุ้น</option><option>คริปโต</option><option>ทองคำ</option></select>
                                     <input type="number" placeholder="มูลค่าพอร์ต" className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border border-gray-100" value={invForm.val} onChange={e=>setInvForm({...invForm,val:e.target.value})}/>
-                                    <button onClick={()=>{setInvestments([...investments,{id:Date.now(),...invForm}]);setModals({...modals,inv:false});setInvForm({name:'',type:'หุ้น',val:''})}} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-bold text-lg shadow-lg">บันทึกพอร์ต</button>
+                                    <button onClick={()=>{setInvestments([...investments,{id:Date.now(),...invForm}]);setModals({...modals,inv:false});setInvForm({name:'',type:'หุ้น',val:''})}} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black text-lg shadow-lg active:scale-95 transition-all">บันทึกพอร์ต</button>
                                 </div>
                             </div>
                         </div>
