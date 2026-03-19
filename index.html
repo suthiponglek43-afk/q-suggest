@@ -3,19 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Pro | แอปจัดการการเงิน</title>
+    <title>Finance Pro | Wallet App</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&display=swap');
-        body { font-family: 'Prompt', sans-serif; background-color: #F1F5F9; }
+        body { font-family: 'Prompt', sans-serif; background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .animate-in { animation: fadeIn 0.3s ease-out; }
+        .animate-in { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-up { transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .slide-up.active { transform: translateY(0); }
     </style>
 </head>
 <body>
@@ -24,232 +27,209 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
-        // ดึง Icon จาก Lucide (รูปแบบสำหรับ CDN)
-        const Icon = ({ name, size = 24, className = "" }) => {
-            const LucideIcon = lucide.icons[name];
-            return LucideIcon ? <span dangerouslySetInnerHTML={{ __html: lucide.createIcons({ icons: { [name]: LucideIcon }, attrs: { width: size, height: size, class: className } }) }} /> : null;
-        };
-
+        // --- Configuration ---
         const THAI_BANKS = [
             { id: 'kbank', name: 'ธนาคารกสิกรไทย', shortName: 'KBank', color: 'bg-emerald-600' },
             { id: 'scb', name: 'ธนาคารไทยพาณิชย์', shortName: 'SCB', color: 'bg-purple-700' },
             { id: 'bbl', name: 'ธนาคารกรุงเทพ', shortName: 'BBL', color: 'bg-blue-800' },
             { id: 'ktb', name: 'ธนาคารกรุงไทย', shortName: 'KTB', color: 'bg-sky-500' },
             { id: 'bay', name: 'ธนาคารกรุงศรีอยุธยา', shortName: 'BAY', color: 'bg-yellow-500' },
-            { id: 'ttb', name: 'ธนาคารทหารไทยธนชาต', shortName: 'TTB', color: 'bg-blue-600' },
-            { id: 'gsb', name: 'ธนาคารออมสิน', shortName: 'GSB', color: 'bg-pink-500' },
-            { id: 'uob', name: 'ธนาคารยูโอบี', shortName: 'UOB', color: 'bg-blue-900' },
+            { id: 'ttb', name: 'ธนาคารทหารไทยธนชาต', shortName: 'TTB', color: 'bg-blue-600' }
         ];
 
+        // --- Main App Component ---
         function App() {
-            // --- States (โหลดจาก LocalStorage ถ้ามี) ---
             const [activeTab, setActiveTab] = useState('home');
             const [showBalance, setShowBalance] = useState(true);
-            const [expandedBank, setExpandedBank] = useState('kbank');
             const [successMsg, setSuccessMsg] = useState('');
             const [showModal, setShowModal] = useState(false);
             const [showAddAccountModal, setShowAddAccountModal] = useState(false);
-            const [showInvestModal, setShowInvestModal] = useState(false);
-            const [showBudgetModal, setShowBudgetModal] = useState(false);
             const [txType, setTxType] = useState('expense');
-            const [analysisPeriod, setAnalysisPeriod] = useState('month');
+            const [suggestion, setSuggestion] = useState('');
 
-            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem('banks')) || [
+            // --- Persistence States ---
+            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem('f_banks')) || [
                 { id: 'kbank', name: 'ธนาคารกสิกรไทย', shortName: 'KBank', color: 'bg-emerald-600', accounts: [{ id: 101, name: 'บัญชีเงินเดือน', type: 'ออมทรัพย์', balance: 45000 }] }
             ]);
-            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem('transactions')) || []);
-            const [investments, setInvestments] = useState(() => JSON.parse(localStorage.getItem('investments')) || []);
-            const [budgets, setBudgets] = useState(() => JSON.parse(localStorage.getItem('budgets')) || []);
+            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem('f_tx')) || []);
+            const [investments] = useState([{ id: 1, name: 'หุ้นไทย (SET)', value: 450000, change: '+2.4%' }]);
+            const [budgets] = useState([{ id: 1, category: 'อาหาร', limit: 10000, spent: 6500, color: 'bg-blue-500' }]);
 
-            // --- Save Data Effect ---
+            // --- Form States ---
+            const [formData, setFormData] = useState({ amount: '', title: '', category: 'อาหาร', accountId: '' });
+            const [newAcc, setNewAcc] = useState({ bankId: 'kbank', name: '', balance: '' });
+
+            // --- Effects ---
             useEffect(() => {
-                localStorage.setItem('banks', JSON.stringify(banks));
-                localStorage.setItem('transactions', JSON.stringify(transactions));
-                localStorage.setItem('investments', JSON.stringify(investments));
-                localStorage.setItem('budgets', JSON.stringify(budgets));
-                lucide.createIcons(); // Re-render icons
-            }, [banks, transactions, investments, budgets]);
+                localStorage.setItem('f_banks', JSON.stringify(banks));
+                localStorage.setItem('f_tx', JSON.stringify(transactions));
+                lucide.createIcons();
+            }, [banks, transactions]);
 
-            // ฟังก์ชันเลียนแบบ Lucide Component ในโค้ดเดิม
-            const LucideIcon = ({ name, size = 24, color = "currentColor" }) => {
-                const iconHtml = lucide.icons[name] ? lucide.createIcons({ icons: { [name]: lucide.icons[name] } }) : '';
-                return <i data-lucide={name.toLowerCase()} style={{ width: size, height: size }}></i>;
-            };
+            useEffect(() => { lucide.createIcons(); }, [activeTab, showModal, showAddAccountModal]);
 
-            // --- Logic คำนวณยอด (ใช้ useMemo ตามโค้ดต้นฉบับ) ---
+            // --- Calculations ---
             const totals = useMemo(() => {
-                const bankSum = banks.reduce((acc, bank) => acc + bank.accounts.reduce((a, b) => a + b.balance, 0), 0);
-                const invSum = investments.reduce((acc, inv) => acc + inv.value, 0);
-                const monthIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-                const monthExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Math.abs(t.amount), 0);
-                return { bankSum, invSum, netWorth: bankSum + invSum, monthIncome, monthExpense };
-            }, [banks, investments, transactions]);
+                const bankSum = banks.reduce((acc, b) => acc + b.accounts.reduce((a, ac) => a + ac.balance, 0), 0);
+                const income = transactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
+                const expense = transactions.filter(t => t.type === 'expense').reduce((a, t) => a + Math.abs(t.amount), 0);
+                return { netWorth: bankSum + 450000, income, expense };
+            }, [banks, transactions]);
 
-            const allAccounts = banks.flatMap(bank => bank.accounts.map(acc => ({ ...acc, bankName: bank.shortName })));
+            const allAccounts = banks.flatMap(b => b.accounts.map(a => ({ ...a, bankName: b.shortName })));
 
+            // --- Handlers ---
             const showToast = (msg) => {
                 setSuccessMsg(msg);
                 setTimeout(() => setSuccessMsg(''), 3000);
             };
 
-            // --- Handlers (ลอจิกตามที่คุณเขียนมา) ---
-            const [formData, setFormData] = useState({ amount: '', title: '', category: 'ทั่วไป', accountId: '', toAccountId: '' });
-            const [newAccountData, setNewAccountData] = useState({ bankId: 'kbank', accountName: '', type: 'ออมทรัพย์', initialBalance: '' });
-
-            const handleTransactionSubmit = () => {
-                const amount = parseFloat(formData.amount);
-                if (!amount || amount <= 0) return;
+            const handleSaveTx = () => {
+                const amt = parseFloat(formData.amount);
+                if (!amt || !formData.accountId) return alert("กรุณากรอกข้อมูลให้ครบ");
                 
-                let newTx = { id: Date.now(), title: formData.title || 'รายการใหม่', category: formData.category, date: 'เพิ่งบันทึก', type: txType, amount: txType === 'expense' ? -amount : amount };
                 let updatedBanks = JSON.parse(JSON.stringify(banks));
-
-                updatedBanks = updatedBanks.map(bank => ({
-                    ...bank, accounts: bank.accounts.map(acc => {
-                        if (acc.id === parseInt(formData.accountId)) {
-                            newTx.accountName = `${bank.shortName} - ${acc.name}`;
-                            return { ...acc, balance: txType === 'expense' ? acc.balance - amount : acc.balance + amount };
+                let accName = "";
+                updatedBanks = updatedBanks.map(b => ({
+                    ...b, accounts: b.accounts.map(a => {
+                        if (a.id === parseInt(formData.accountId)) {
+                            accName = `${b.shortName} - ${a.name}`;
+                            return { ...a, balance: txType === 'expense' ? a.balance - amt : a.balance + amt };
                         }
-                        return acc;
+                        return a;
                     })
                 }));
 
                 setBanks(updatedBanks);
-                setTransactions([newTx, ...transactions]);
+                setTransactions([{ id: Date.now(), title: formData.title || 'รายการใหม่', amount: txType === 'expense' ? -amt : amt, type: txType, accountName: accName, date: new Date().toLocaleString('th-TH'), category: formData.category }, ...transactions]);
                 setShowModal(false);
-                showToast('บันทึกรายการสำเร็จ!');
+                setFormData({ amount: '', title: '', category: 'อาหาร', accountId: '' });
+                showToast("บันทึกสำเร็จ!");
             };
 
-            const handleAddAccountSubmit = () => {
-                if (!newAccountData.accountName || !newAccountData.initialBalance) return;
-                const bankTemplate = THAI_BANKS.find(b => b.id === newAccountData.bankId);
-                const newAccount = { id: Date.now(), name: newAccountData.accountName, type: newAccountData.type, balance: parseFloat(newAccountData.initialBalance) || 0 };
+            const handleAddAccount = () => {
+                if (!newAcc.name || !newAcc.balance) return;
+                const bankBase = THAI_BANKS.find(b => b.id === newAcc.bankId);
+                let updated = [...banks];
+                const idx = updated.findIndex(b => b.id === newAcc.bankId);
+                const accObj = { id: Date.now(), name: newAcc.name, type: 'ออมทรัพย์', balance: parseFloat(newAcc.balance) };
                 
-                let updatedBanks = [...banks];
-                const existingBankIndex = updatedBanks.findIndex(b => b.id === newAccountData.bankId);
-                if (existingBankIndex >= 0) updatedBanks[existingBankIndex].accounts.push(newAccount);
-                else updatedBanks.push({ ...bankTemplate, accounts: [newAccount] });
+                if (idx >= 0) updated[idx].accounts.push(accObj);
+                else updated.push({ ...bankBase, accounts: [accObj] });
 
-                setBanks(updatedBanks);
+                setBanks(updated);
                 setShowAddAccountModal(false);
-                showToast('เพิ่มบัญชีสำเร็จ!');
+                showToast("เพิ่มบัญชีสำเร็จ");
             };
 
-            // --- Render Logic ---
             return (
-                <div className="bg-slate-100 min-h-screen flex flex-col items-center py-0 sm:py-10">
-                    {successMsg && <div className="fixed top-10 z-[60] bg-emerald-500 text-white px-6 py-3 rounded-full font-bold shadow-xl animate-in">{successMsg}</div>}
+                <div className="min-h-screen flex justify-center">
+                    {successMsg && <div className="fixed top-10 z-[70] bg-emerald-500 text-white px-6 py-3 rounded-full font-bold shadow-xl animate-in">{successMsg}</div>}
 
-                    <div className="w-full max-w-md bg-[#F8FAFC] min-h-screen sm:min-h-[844px] sm:rounded-[48px] shadow-2xl relative flex flex-col overflow-hidden border-[8px] border-white">
+                    <div className="w-full max-w-md bg-white sm:rounded-[40px] shadow-2xl relative flex flex-col overflow-hidden border-white">
                         
                         {/* Header Panel */}
-                        <div className="pt-10 pb-6 px-6 bg-white shrink-0 rounded-b-[40px] shadow-sm z-10">
+                        <div className="pt-12 pb-8 px-6 bg-white shrink-0 rounded-b-[40px] shadow-sm z-10">
                             <div className="flex justify-between items-center mb-6">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-black flex items-center justify-center text-white font-bold">A</div>
+                                    <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center font-bold">A</div>
                                     <div><p className="text-[10px] text-slate-400 font-bold uppercase">Net Worth</p><p className="font-bold">คุณอภิสิทธิ์</p></div>
                                 </div>
                                 <button onClick={() => setShowBalance(!showBalance)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
-                                    <i data-lucide={showBalance ? "eye" : "eye-off"}></i>
+                                    <i data-lucide={showBalance ? "eye" : "eye-off"} style={{width:18}}></i>
                                 </button>
                             </div>
-                            <div className="text-center py-2">
+                            <div className="text-center">
                                 <h2 className="text-4xl font-black text-slate-900 tracking-tighter">
                                     {showBalance ? `฿${totals.netWorth.toLocaleString()}` : '••••••••••'}
                                 </h2>
-                                <div className="flex justify-center gap-3 mt-6">
-                                    <button onClick={() => { setTxType('expense'); setShowModal(true); }} className="flex-1 bg-black text-white py-4 rounded-2xl text-xs font-bold shadow-lg">บันทึกรายการ</button>
-                                    <button className="px-6 border border-slate-200 py-4 rounded-2xl text-xs font-bold">โอน</button>
+                                <div className="flex justify-center gap-3 mt-8">
+                                    <button onClick={() => {setTxType('expense'); setShowModal(true);}} className="flex-1 bg-black text-white py-4 rounded-2xl text-xs font-bold shadow-lg active:scale-95 transition-all">บันทึกรายการ</button>
+                                    <button className="px-6 border border-slate-200 py-4 rounded-2xl text-xs font-bold active:scale-95 transition-all"><i data-lucide="arrow-right-left" style={{width:16}}></i></button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Content Area (ตาม Tab) */}
-                        <div className="flex-1 px-6 pt-6 pb-28 overflow-y-auto no-scrollbar">
+                        {/* Content Area */}
+                        <div className="flex-1 px-6 pt-6 pb-28 overflow-y-auto no-scrollbar scroll-smooth">
                             {activeTab === 'home' && (
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-emerald-50 p-4 rounded-3xl border border-emerald-100">
-                                            <p className="text-[10px] font-bold text-emerald-700 uppercase mb-1">รายรับ</p>
-                                            <p className="text-lg font-bold text-emerald-900">฿{totals.monthIncome.toLocaleString()}</p>
-                                        </div>
-                                        <div className="bg-rose-50 p-4 rounded-3xl border border-rose-100">
-                                            <p className="text-[10px] font-bold text-rose-700 uppercase mb-1">รายจ่าย</p>
-                                            <p className="text-lg font-bold text-rose-900">฿{totals.monthExpense.toLocaleString()}</p>
-                                        </div>
+                                <div className="space-y-8 animate-in">
+                                    <div className="grid grid-cols-2 gap-4 text-center">
+                                        <div className="bg-emerald-50 p-4 rounded-3xl border border-emerald-100"><p className="text-[10px] font-bold text-emerald-700 uppercase">รายรับ</p><p className="text-lg font-bold">฿{totals.income.toLocaleString()}</p></div>
+                                        <div className="bg-rose-50 p-4 rounded-3xl border border-rose-100"><p className="text-[10px] font-bold text-rose-700 uppercase">รายจ่าย</p><p className="text-lg font-bold">฿{totals.expense.toLocaleString()}</p></div>
                                     </div>
-                                    
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="font-bold">บัญชีธนาคาร</h3>
-                                        <button onClick={() => setShowAddAccountModal(true)} className="text-blue-600 text-xs font-bold">+ เพิ่มบัญชี</button>
-                                    </div>
-                                    {banks.map(bank => (
-                                        <div key={bank.id} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-50 flex justify-between items-center">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 ${bank.color} rounded-xl flex items-center justify-center text-white text-[10px] font-bold`}>{bank.shortName}</div>
-                                                <div><p className="font-bold text-sm">{bank.name}</p><p className="text-[10px] text-slate-400">{bank.accounts.length} บัญชี</p></div>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center font-bold"><span>บัญชีธนาคาร</span><button onClick={()=>setShowAddAccountModal(true)} className="text-blue-600 text-xs">+ เพิ่มบัญชี</button></div>
+                                        {banks.map(b => (
+                                            <div key={b.id} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-50 flex justify-between items-center">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-10 h-10 ${b.color} rounded-xl text-white text-[10px] font-bold flex items-center justify-center`}>{b.shortName}</div>
+                                                    <div><p className="font-bold text-sm">{b.name}</p><p className="text-[10px] text-slate-400">{b.accounts.length} บัญชี</p></div>
+                                                </div>
+                                                <p className="font-bold text-sm">฿{b.accounts.reduce((a,ac)=>a+ac.balance,0).toLocaleString()}</p>
                                             </div>
-                                            <p className="font-bold text-sm">฿{bank.accounts.reduce((a,b)=>a+b.balance,0).toLocaleString()}</p>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             )}
+
                             {activeTab === 'history' && (
-                                <div className="space-y-3">
-                                    <h3 className="font-bold text-lg mb-4">ประวัติรายการ</h3>
+                                <div className="space-y-4 animate-in">
+                                    <h3 className="font-bold text-xl mb-4">ประวัติรายการ</h3>
                                     {transactions.map(t => (
-                                        <div key={t.id} className="bg-white p-4 rounded-3xl shadow-sm flex justify-between items-center">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-xl ${t.type === 'income' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                    <i data-lucide={t.type === 'income' ? "arrow-down-left" : "arrow-up-right"}></i>
-                                                </div>
-                                                <div><p className="font-bold text-sm">{t.title}</p><p className="text-[10px] text-slate-400">{t.accountName}</p></div>
+                                        <div key={t.id} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-50 flex justify-between items-center">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-3 rounded-2xl ${t.type === 'income' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}><i data-lucide={t.type === 'income' ? "arrow-down-left" : "arrow-up-right"} style={{width:20}}></i></div>
+                                                <div><p className="font-bold text-sm text-slate-800">{t.title}</p><p className="text-[10px] text-slate-400">{t.accountName}</p></div>
                                             </div>
-                                            <p className={`font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-slate-800'}`}>{t.amount.toLocaleString()}</p>
+                                            <div className="text-right font-bold"><p className={t.amount > 0 ? 'text-emerald-600' : 'text-slate-800'}>{t.amount > 0 ? '+' : ''}฿{Math.abs(t.amount).toLocaleString()}</p></div>
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
 
-                        {/* Bottom Navigation */}
+                        {/* Nav Bar */}
                         <div className="absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-100 px-8 py-5 flex justify-between items-center pb-8 z-20">
-                            {['home', 'history', 'stats', 'settings'].map(tab => (
-                                <button key={tab} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-1 ${activeTab === tab ? 'text-blue-600' : 'text-slate-400'}`}>
-                                    <i data-lucide={tab === 'stats' ? 'pie-chart' : tab === 'home' ? 'wallet' : tab}></i>
-                                    <span className="text-[9px] font-bold uppercase">{tab}</span>
+                            {['home', 'history', 'stats', 'settings'].map(t => (
+                                <button key={t} onClick={()=>setActiveTab(t)} className={`flex flex-col items-center gap-1 transition-all ${activeTab === t ? 'text-blue-600 -translate-y-1' : 'text-slate-400'}`}>
+                                    <i data-lucide={t === 'home' ? 'wallet' : t === 'stats' ? 'pie-chart' : t === 'history' ? 'history' : 'settings'} style={{width:24}}></i>
+                                    <span className="text-[9px] font-bold uppercase">{t}</span>
                                 </button>
                             ))}
                         </div>
 
-                        {/* Modals - Simplified version of your UI */}
-                        {showModal && (
-                            <div className="absolute inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm animate-in">
-                                <div className="w-full bg-white rounded-t-[40px] p-8 pb-12">
-                                    <div className="flex justify-between mb-8"><h4 className="font-black text-xl">บันทึกรายจ่าย</h4><button onClick={()=>setShowModal(false)}>ปิด</button></div>
-                                    <input type="number" placeholder="0.00" className="w-full text-5xl font-black text-center mb-8 outline-none" value={formData.amount} onChange={e=>setFormData({...formData, amount:e.target.value})} />
-                                    <select className="w-full p-4 bg-slate-100 rounded-2xl mb-4 font-bold" value={formData.accountId} onChange={e=>setFormData({...formData, accountId:e.target.value})}>
+                        {/* Add Tx Modal */}
+                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${showModal ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${showModal ? 'active' : ''}`}>
+                                <div className="flex justify-between mb-8 font-black text-xl"><h4>บันทึกรายการ</h4><button onClick={()=>setShowModal(false)}><i data-lucide="x"></i></button></div>
+                                <div className="space-y-6">
+                                    <input type="number" placeholder="0.00" className={`w-full text-5xl font-black text-center outline-none ${txType === 'expense' ? 'text-rose-500' : 'text-emerald-500'}`} value={formData.amount} onChange={e=>setFormData({...formData, amount: e.target.value})} />
+                                    <select className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={formData.accountId} onChange={e=>setFormData({...formData, accountId: e.target.value})}>
                                         <option value="">เลือกบัญชี</option>
-                                        {allAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.bankName} - {acc.name}</option>)}
+                                        {allAccounts.map(a => <option key={a.id} value={a.id}>{a.bankName} - {a.name}</option>)}
                                     </select>
-                                    <input type="text" placeholder="บันทึกช่วยจำ" className="w-full p-4 bg-slate-100 rounded-2xl mb-6 font-bold" value={formData.title} onChange={e=>setFormData({...formData, title:e.target.value})} />
-                                    <button onClick={handleTransactionSubmit} className="w-full py-5 bg-black text-white rounded-3xl font-black">บันทึกรายการ</button>
+                                    <input type="text" placeholder="บันทึกช่วยจำ" className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} />
+                                    <button onClick={handleSaveTx} className={`w-full py-5 rounded-3xl text-white font-black text-lg ${txType === 'expense' ? 'bg-rose-500' : 'bg-emerald-500'}`}>ยืนยันบันทึก</button>
                                 </div>
                             </div>
-                        )}
+                        </div>
 
-                        {showAddAccountModal && (
-                            <div className="absolute inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm animate-in">
-                                <div className="w-full bg-white rounded-t-[40px] p-8 pb-12">
-                                    <div className="flex justify-between mb-6"><h4 className="font-black text-xl">เพิ่มบัญชีใหม่</h4><button onClick={()=>setShowAddAccountModal(false)}>ปิด</button></div>
-                                    <select className="w-full p-4 bg-slate-100 rounded-2xl mb-4 font-bold" value={newAccountData.bankId} onChange={e=>setNewAccountData({...newAccountData, bankId:e.target.value})}>
+                        {/* Add Acc Modal */}
+                        <div className={`absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end transition-opacity duration-300 ${showAddAccountModal ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <div className={`w-full bg-white rounded-t-[40px] p-8 pb-12 slide-up ${showAddAccountModal ? 'active' : ''}`}>
+                                <div className="flex justify-between mb-6 font-black text-xl"><h4>เพิ่มบัญชีใหม่</h4><button onClick={()=>setShowAddAccountModal(false)}><i data-lucide="x"></i></button></div>
+                                <div className="space-y-4">
+                                    <select className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={newAcc.bankId} onChange={e=>setNewAcc({...newAcc, bankId: e.target.value})}>
                                         {THAI_BANKS.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                     </select>
-                                    <input type="text" placeholder="ชื่อบัญชี" className="w-full p-4 bg-slate-100 rounded-2xl mb-4 font-bold" value={newAccountData.accountName} onChange={e=>setNewAccountData({...newAccountData, accountName:e.target.value})} />
-                                    <input type="number" placeholder="ยอดเงินเริ่มต้น" className="w-full p-4 bg-slate-100 rounded-2xl mb-6 font-bold" value={newAccountData.initialBalance} onChange={e=>setNewAccountData({...newAccountData, initialBalance:e.target.value})} />
-                                    <button onClick={handleAddAccountSubmit} className="w-full py-5 bg-blue-600 text-white rounded-3xl font-black">ยืนยันการเพิ่มบัญชี</button>
+                                    <input type="text" placeholder="ชื่อบัญชี" className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={newAcc.name} onChange={e=>setNewAcc({...newAcc, name: e.target.value})} />
+                                    <input type="number" placeholder="ยอดเงินเริ่มต้น" className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={newAcc.balance} onChange={e=>setNewAcc({...newAcc, balance: e.target.value})} />
+                                    <button onClick={handleAddAccount} className="w-full py-5 bg-blue-600 text-white rounded-3xl font-black text-lg">เพิ่มบัญชีใหม่</button>
                                 </div>
                             </div>
-                        )}
+                        </div>
+
                     </div>
                 </div>
             );
@@ -257,9 +237,7 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-
-        // Initialize Icons after React Render
-        setTimeout(() => lucide.createIcons(), 500);
+        setInterval(() => lucide.createIcons(), 500);
     </script>
 </body>
 </html>
