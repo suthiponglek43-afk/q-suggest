@@ -90,12 +90,42 @@
             const [modals, setModals] = useState({ tx: false, acc: false, inv: false, budget: false });
             const [txType, setTxType] = useState('expense');
             
-            // ข้อมูล LocalStorage
+            // ข้อมูล LocalStorage พร้อมระบบดึงข้อมูลจากเวอร์ชันเก่า (Migration)
             const DB_KEY = "f_data_v2";
-            const [cash, setCash] = useState(() => Number(localStorage.getItem(DB_KEY + '_cash')) || 0);
-            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_banks')) || []);
-            const [investments, setInvestments] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_inv')) || []);
-            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_tx')) || []);
+            const OLD_DB_KEY = "f_data_stable_v1";
+
+            const [cash, setCash] = useState(() => {
+                const newCash = localStorage.getItem(DB_KEY + '_cash');
+                return newCash !== null ? Number(newCash) : (Number(localStorage.getItem(OLD_DB_KEY + '_cash')) || 0);
+            });
+
+            const [banks, setBanks] = useState(() => {
+                const newBanks = JSON.parse(localStorage.getItem(DB_KEY + '_banks'));
+                return (newBanks && newBanks.length > 0) ? newBanks : (JSON.parse(localStorage.getItem(OLD_DB_KEY + '_banks')) || []);
+            });
+
+            const [investments, setInvestments] = useState(() => {
+                const newInv = JSON.parse(localStorage.getItem(DB_KEY + '_inv'));
+                return (newInv && newInv.length > 0) ? newInv : (JSON.parse(localStorage.getItem(OLD_DB_KEY + '_inv')) || []);
+            });
+
+            const [transactions, setTransactions] = useState(() => {
+                const newTx = JSON.parse(localStorage.getItem(DB_KEY + '_tx'));
+                if (newTx && newTx.length > 0) return newTx;
+                
+                // ถ้าไม่มีข้อมูลใหม่ ให้ไปดึงข้อมูลเก่ามา แล้วใส่หมวดหมู่ "อื่นๆ" ให้มันจะได้ไม่ Error
+                const oldTx = JSON.parse(localStorage.getItem(OLD_DB_KEY + '_tx'));
+                if (oldTx && oldTx.length > 0) {
+                    return oldTx.map(t => ({
+                        ...t,
+                        category: t.type === 'expense' 
+                            ? { id: 'other_exp', name: 'อื่นๆ (ข้อมูลเก่า)', icon: 'more-horizontal', color: 'bg-slate-500' }
+                            : { id: 'other_inc', name: 'รับอื่นๆ (ข้อมูลเก่า)', icon: 'plus-circle', color: 'bg-slate-500' }
+                    }));
+                }
+                return [];
+            });
+
             const [categoryBudgets, setCategoryBudgets] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_cat_budgets')) || {});
 
             // Forms
