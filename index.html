@@ -45,17 +45,59 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // ==========================================
+        // ระบบกู้คืนยอดเงินและข้อมูลทั้งหมดจาก V1 แบบบังคับ (Force Migration V4)
+        // จะไปดึงยอดเงินและประวัติเดิมมาทับเลข 0 ที่แอปเผลอสร้างไว้
+        // ==========================================
+        const DB_KEY = "f_data_v2";
+        const OLD_DB_KEY = "f_data_stable_v1";
+
+        if (!localStorage.getItem(DB_KEY + '_migrated_v4')) {
+            
+            // 1. ดึงยอดเงินสดมาทับ
+            const oldCash = localStorage.getItem(OLD_DB_KEY + '_cash');
+            if (oldCash !== null) localStorage.setItem(DB_KEY + '_cash', oldCash);
+            
+            // 2. ดึงบัญชีธนาคารมาทับ
+            const oldBanks = localStorage.getItem(OLD_DB_KEY + '_banks');
+            if (oldBanks && oldBanks !== "[]") localStorage.setItem(DB_KEY + '_banks', oldBanks);
+            
+            // 3. ดึงพอร์ตลงทุนมาทับ
+            const oldInv = localStorage.getItem(OLD_DB_KEY + '_inv');
+            if (oldInv && oldInv !== "[]") localStorage.setItem(DB_KEY + '_inv', oldInv);
+            
+            // 4. ดึงประวัติรายการทั้งหมดมาทับ (แปลงเป็นแบบมีหมวดหมู่)
+            const oldTx = JSON.parse(localStorage.getItem(OLD_DB_KEY + '_tx') || '[]');
+            if (oldTx.length > 0) {
+                const mappedOld = oldTx.map(t => ({
+                    ...t,
+                    category: t.type === 'expense' 
+                        ? { id: 'other_exp', name: 'อื่นๆ (ข้อมูลเก่า)', icon: 'more-horizontal', color: 'bg-slate-500' }
+                        : { id: 'other_inc', name: 'รับอื่นๆ (ข้อมูลเก่า)', icon: 'plus-circle', color: 'bg-slate-500' }
+                }));
+                localStorage.setItem(DB_KEY + '_tx', JSON.stringify(mappedOld));
+            }
+            
+            // 5. ลบข้อมูลงบประมาณที่อาจจะค้างอยู่
+            localStorage.setItem(DB_KEY + '_cat_budgets', '{}');
+            
+            // ติดป้ายกำกับว่าดึงข้อมูลสำเร็จแล้ว
+            localStorage.setItem(DB_KEY + '_migrated_v4', 'true');
+        }
+
         const { useState, useMemo, useEffect } = React;
 
-        // Wrapper สำหรับ Lucide Icons
+        // แก้บั๊กหน้าจอขาวเวลากดซ่อนเงิน (แยกการอัปเดต React กับ Lucide ออกจากกัน)
         const Icon = ({ name, size = 24, className = "" }) => {
-            const iconRef = React.useRef(null);
+            const spanRef = React.useRef(null);
             useEffect(() => {
-                if (window.lucide && iconRef.current) {
-                    window.lucide.createIcons({ root: iconRef.current.parentElement });
+                if (spanRef.current && window.lucide) {
+                    spanRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
+                    window.lucide.createIcons({ root: spanRef.current });
                 }
             }, [name, size, className]);
-            return <i ref={iconRef} data-lucide={name} className={className} style={{width: size, height: size, display:'inline-block'}}></i>;
+            
+            return <span ref={spanRef} className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size, height: size }}></span>;
         };
 
         const THAI_BANKS = [
@@ -64,7 +106,9 @@
             { id: 'bbl', name: 'กรุงเทพ', shortName: 'BBL', color: 'bg-[#1E4598]', hasTravel: false },
             { id: 'ktb', name: 'กรุงไทย', shortName: 'KTB', color: 'bg-[#00aeeF]', hasTravel: true },
             { id: 'ttb', name: 'ทีทีบี', shortName: 'ttb', color: 'bg-[#0050f0]', hasTravel: true },
-            { id: 'bay', name: 'กรุงศรีฯ', shortName: 'BAY', color: 'bg-[#FEC400]', textColor: 'text-gray-800', hasTravel: true }
+            { id: 'bay', name: 'กรุงศรีฯ', shortName: 'BAY', color: 'bg-[#FEC400]', textColor: 'text-gray-800', hasTravel: true },
+            { id: 'gsb', name: 'ออมสิน', shortName: 'GSB', color: 'bg-[#EB008B]', hasTravel: false },
+            { id: 'uob', name: 'ยูโอบี', shortName: 'UOB', color: 'bg-[#003B70]', hasTravel: false }
         ];
 
         // หมวดหมู่
@@ -90,42 +134,11 @@
             const [modals, setModals] = useState({ tx: false, acc: false, inv: false, budget: false });
             const [txType, setTxType] = useState('expense');
             
-            // ข้อมูล LocalStorage พร้อมระบบดึงข้อมูลจากเวอร์ชันเก่า (Migration)
-            const DB_KEY = "f_data_v2";
-            const OLD_DB_KEY = "f_data_stable_v1";
-
-            const [cash, setCash] = useState(() => {
-                const newCash = localStorage.getItem(DB_KEY + '_cash');
-                return newCash !== null ? Number(newCash) : (Number(localStorage.getItem(OLD_DB_KEY + '_cash')) || 0);
-            });
-
-            const [banks, setBanks] = useState(() => {
-                const newBanks = JSON.parse(localStorage.getItem(DB_KEY + '_banks'));
-                return (newBanks && newBanks.length > 0) ? newBanks : (JSON.parse(localStorage.getItem(OLD_DB_KEY + '_banks')) || []);
-            });
-
-            const [investments, setInvestments] = useState(() => {
-                const newInv = JSON.parse(localStorage.getItem(DB_KEY + '_inv'));
-                return (newInv && newInv.length > 0) ? newInv : (JSON.parse(localStorage.getItem(OLD_DB_KEY + '_inv')) || []);
-            });
-
-            const [transactions, setTransactions] = useState(() => {
-                const newTx = JSON.parse(localStorage.getItem(DB_KEY + '_tx'));
-                if (newTx && newTx.length > 0) return newTx;
-                
-                // ถ้าไม่มีข้อมูลใหม่ ให้ไปดึงข้อมูลเก่ามา แล้วใส่หมวดหมู่ "อื่นๆ" ให้มันจะได้ไม่ Error
-                const oldTx = JSON.parse(localStorage.getItem(OLD_DB_KEY + '_tx'));
-                if (oldTx && oldTx.length > 0) {
-                    return oldTx.map(t => ({
-                        ...t,
-                        category: t.type === 'expense' 
-                            ? { id: 'other_exp', name: 'อื่นๆ (ข้อมูลเก่า)', icon: 'more-horizontal', color: 'bg-slate-500' }
-                            : { id: 'other_inc', name: 'รับอื่นๆ (ข้อมูลเก่า)', icon: 'plus-circle', color: 'bg-slate-500' }
-                    }));
-                }
-                return [];
-            });
-
+            // ดึงข้อมูล LocalStorage
+            const [cash, setCash] = useState(() => Number(localStorage.getItem(DB_KEY + '_cash')) || 0);
+            const [banks, setBanks] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_banks')) || []);
+            const [investments, setInvestments] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_inv')) || []);
+            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_tx')) || []);
             const [categoryBudgets, setCategoryBudgets] = useState(() => JSON.parse(localStorage.getItem(DB_KEY + '_cat_budgets')) || {});
 
             // Forms
@@ -168,7 +181,7 @@
                     const newBanks = banks.map(b => {
                         let updatedAccounts = b.accounts.map(a => {
                             if (a.id === parseInt(txForm.sourceId)) {
-                                label = `${b.shortName} ${a.name}`;
+                                label = `${b.shortName} - ${a.name}`;
                                 sourceValid = true;
                                 return { ...a, balance: txType === 'expense' ? a.balance - amt : a.balance + amt };
                             }
@@ -201,7 +214,7 @@
 
             // ลบรายการ
             const deleteTx = (txId) => {
-                if(!confirm('ต้องการลบรายการนี้ และคืนยอดเงินใช่หรือไม่?')) return;
+                if(!confirm('ต้องการลบรายการนี้ และคืนยอดเงินกลับใช่หรือไม่?')) return;
                 
                 const txToDelete = transactions.find(t => t.id === txId);
                 if(!txToDelete) return;
@@ -226,7 +239,7 @@
             };
 
             const addAcc = () => {
-                if(!accForm.name || !accForm.balance) return alert("กรุณากรอกข้อมูล");
+                if(!accForm.name || !accForm.balance) return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
                 const base = THAI_BANKS.find(b => b.id === accForm.bankId);
                 const newAcc = { id: Date.now(), name: accForm.name, balance: parseFloat(accForm.balance), type: accForm.type };
                 const idx = banks.findIndex(b => b.id === accForm.bankId);
@@ -239,7 +252,7 @@
                 setAccForm({ bankId: 'kbank', name: '', balance: '', type: 'ออมทรัพย์' });
             };
 
-            // ข้อมูลสำหรับสถิติ
+            // ข้อมูลสำหรับสถิติ (เฉพาะรายจ่าย)
             const statsData = useMemo(() => {
                 const expenses = transactions.filter(t => t.type === 'expense');
                 const byCat = expenses.reduce((acc, tx) => {
@@ -402,9 +415,21 @@
                             {/* TAB: STATS (ระบบงบประมาณ) */}
                             {activeTab === 'stats' && (
                                 <div className="space-y-6 animate-in">
-                                    <h3 className="font-bold text-slate-800 text-lg">ภาพรวมรายจ่าย</h3>
+                                    <h3 className="font-bold text-slate-800 text-lg mb-2">ภาพรวมการเงิน</h3>
                                     
-                                    <div className="bg-white p-6 rounded-3xl premium-shadow border border-slate-100 relative">
+                                    {/* เพิ่มกล่องสรุปรายรับ */}
+                                    <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex justify-between items-center premium-shadow">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                                                <Icon name="arrow-up-right" size={20} />
+                                            </div>
+                                            <span className="font-bold text-sm text-emerald-800">รายรับรวมทั้งหมด</span>
+                                        </div>
+                                        <span className="font-black text-xl text-emerald-600">฿{totals.periodIncome.toLocaleString()}</span>
+                                    </div>
+
+                                    {/* กล่องสรุปรายจ่ายและงบประมาณ */}
+                                    <div className="bg-white p-6 rounded-3xl premium-shadow border border-slate-100 relative mt-4">
                                         <button onClick={() => { setBudgetForm(categoryBudgets); setModals({...modals, budget: true}); }} className="absolute top-4 right-4 w-8 h-8 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full flex items-center justify-center transition-colors">
                                             <Icon name="edit-2" size={14} />
                                         </button>
@@ -433,7 +458,7 @@
                                         )}
                                         
                                         <div className="space-y-4 mt-6">
-                                            <p className="text-xs font-bold text-slate-500 mb-2">แยกตามหมวดหมู่</p>
+                                            <p className="text-xs font-bold text-slate-500 mb-2">แยกตามหมวดหมู่รายจ่าย</p>
                                             {statsData.map(stat => (
                                                 <div key={stat.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                                     <div className="flex justify-between items-center mb-2">
